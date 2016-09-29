@@ -2,9 +2,9 @@
 // Licensed under the MIT license. See LICENSE file in the project root for full license information.
 
 #include "azure_c_shared_utility/xlogging.h"
-#include "azure_c_shared_utility/consolelogger.h"
 
 #ifndef NO_LOGGING
+#include "azure_c_shared_utility/consolelogger.h"
 
 
 #ifdef WINCE

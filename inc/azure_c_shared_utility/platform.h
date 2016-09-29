@@ -8,6 +8,7 @@
 extern "C" {
 #endif /* __cplusplus */
 
+#include "azure_c_shared_utility/tlsio.h"
 #include "azure_c_shared_utility/xio.h"
 #include "azure_c_shared_utility/umock_c_prod.h"
 

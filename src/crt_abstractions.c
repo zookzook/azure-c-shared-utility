@@ -10,28 +10,45 @@
 #include "azure_c_shared_utility/gballoc.h"
 
 #include "azure_c_shared_utility/crt_abstractions.h"
-#include "errno.h"
-#include <stddef.h>
-#include <limits.h>
+#include <errno.h>
 #include <float.h>
+#include <limits.h>
 #include <math.h>
+#include <stddef.h>
 
 
 #ifdef WINCE
 #pragma warning(disable:4756) // warning C4756: overflow in constant arithmetic
+// The following defines are missing in math.h for WEC2013 SDK
+#endif
 
-// These defines are missing in math.h for WEC2013 SDK
+#ifdef __MSP430FR5969__
+#pragma diag_suppress 224 // floating-point operation result is out of range
+#endif
+
 #ifndef _HUGE_ENUF
 #define _HUGE_ENUF  1e+300  // _HUGE_ENUF*_HUGE_ENUF must overflow
 #endif
 
-#define INFINITY   ((float)(_HUGE_ENUF * _HUGE_ENUF))
-#define HUGE_VALF  ((float)INFINITY)
-#define HUGE_VALL  ((long double)INFINITY)
-#define NAN        ((float)(INFINITY * 0.0F))
+#ifdef INFINITY
+#undef INFINITY
 #endif
+#define INFINITY   ((float)(_HUGE_ENUF * _HUGE_ENUF))
 
+#ifdef HUGE_VALF
+#undef HUGE_VALF
+#endif
+#define HUGE_VALF  ((float)INFINITY)
 
+#ifdef HUGE_VALL
+#undef HUGE_VALL
+#endif
+#define HUGE_VALL  ((long double)INFINITY)
+
+#ifdef NAN
+#undef NAN
+#endif
+#define NAN        ((float)(INFINITY * 0.0F))
 
 #ifdef _MSC_VER
 #else
@@ -45,13 +62,13 @@ int strcat_s(char* dst, size_t dstSizeInBytes, const char* src)
     /*Codes_SRS_CRT_ABSTRACTIONS_99_004: [If dst is NULL or unterminated, the error code returned shall be EINVAL & dst shall not be modified.]*/
     if (dst == NULL)
     {
-        result = EINVAL;
+        result = __LINE__;
     }
     /*Codes_SRS_CRT_ABSTRACTIONS_99_005: [If src is NULL, the error code returned shall be EINVAL and dst[0] shall be set to 0.]*/
     else if (src == NULL)
     {
         dst[0] = '\0';
-        result = EINVAL;
+        result = __LINE__;
     }
     else
     {
@@ -76,7 +93,7 @@ int strcat_s(char* dst, size_t dstSizeInBytes, const char* src)
             /*Codes_SRS_CRT_ABSTRACTIONS_99_004: [If dst is NULL or unterminated, the error code returned shall be EINVAL & dst shall not be modified.]*/
             if (dstSizeInBytes == dstStrLen) /* this means the dst string is not terminated*/
             {
-                result = EINVAL;
+                result = __LINE__;
             }
             else
             {
@@ -108,18 +125,18 @@ int strncpy_s(char* dst, size_t dstSizeInBytes, const char* src, size_t maxCount
     /*Codes_SRS_CRT_ABSTRACTIONS_99_020: [If dst is NULL, the error code returned shall be EINVAL and dst shall not be modified.]*/
     if (dst == NULL)
     {
-        result = EINVAL;
+        result = __LINE__;
     }
     /*Codes_SRS_CRT_ABSTRACTIONS_99_021: [If src is NULL, the error code returned shall be EINVAL and dst[0] shall be set to 0.]*/
     else if (src == NULL)
     {
         dst[0] = '\0';
-        result = EINVAL;
+        result = __LINE__;
     }
     /*Codes_SRS_CRT_ABSTRACTIONS_99_022: [If the dstSizeInBytes is 0, the error code returned shall be EINVAL and dst shall not be modified.]*/
     else if (dstSizeInBytes == 0)
     {
-        result = EINVAL;
+        result = __LINE__;
     }
     else 
     {
@@ -177,13 +194,13 @@ int strcpy_s(char* dst, size_t dstSizeInBytes, const char* src)
     /* Codes_SRS_CRT_ABSTRACTIONS_99_012: [If dst is NULL, the error code returned shall be EINVAL & dst shall not be modified.]*/
     if (dst == NULL)
     {
-        result = EINVAL;
+        result = __LINE__;
     }
     /* Codes_SRS_CRT_ABSTRACTIONS_99_013: [If src is NULL, the error code returned shall be EINVAL and dst[0] shall be set to 0.]*/
     else if (src == NULL)
     {
         dst[0] = '\0';
-        result = EINVAL;
+        result = __LINE__;
     }
     /* Codes_SRS_CRT_ABSTRACTIONS_99_014: [If the dstSizeInBytes is 0 or smaller than the required size for the src string, the error code returned shall be ERANGE & dst[0] set to 0.]*/
     else if (dstSizeInBytes == 0)
@@ -220,7 +237,7 @@ int sprintf_s(char* dst, size_t dstSizeInBytes, const char* format, ...)
     if ((dst == NULL) ||
         (format == NULL))
     {
-        errno = EINVAL;
+        errno = __LINE__;
         result = -1;
     }
     else
@@ -681,7 +698,7 @@ int mallocAndStrcpy_s(char** destination, const char* source)
     if ((destination == NULL) || (source == NULL))
     {
         /*If strDestination or strSource is a NULL pointer[...]these functions return EINVAL */
-        result = EINVAL;
+        result = __LINE__;
     }
     else
     {
@@ -691,7 +708,7 @@ int mallocAndStrcpy_s(char** destination, const char* source)
         /*Codes_SRS_CRT_ABSTRACTIONS_99_037: [Upon failure to allocate memory for the destination, the function will return ENOMEM.]*/
         if (temp == NULL)
         {
-            result = ENOMEM;
+            result = __LINE__;
         }
         else
         {

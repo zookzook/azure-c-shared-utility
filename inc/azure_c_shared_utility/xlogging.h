@@ -10,8 +10,6 @@
 #include <stdio.h>
 #endif /* __cplusplus */
 
-#include "azure_c_shared_utility/agenttime.h"
-
 typedef enum LOG_CATEGORY_TAG
 {
     LOG_ERROR,

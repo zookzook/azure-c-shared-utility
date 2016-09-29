@@ -113,7 +113,7 @@ void VECTOR_clear(VECTOR_HANDLE handle)
     if (handle != NULL)
     {
         VECTOR* vec = (VECTOR*)handle;
-        internal_VECTOR_clear(vec);
+        vec->count = 0;
     }
 }
 

@@ -7,6 +7,7 @@
 #endif
 #include <stdarg.h>
 #include <stdio.h>
+#include <agenttime.h>
 #include "azure_c_shared_utility/xlogging.h"
 
 void consolelogger_log(LOG_CATEGORY log_category, const char* file, const char* func, const int line, unsigned int options, const char* format, ...)
@@ -22,7 +23,7 @@ void consolelogger_log(LOG_CATEGORY log_category, const char* file, const char* 
         (void)printf("Info: ");
         break;
     case LOG_ERROR:
-        (void)printf("Error: Time:%.24s File:%s Func:%s Line:%d ", ctime(&t), file, func, line);
+        (void)printf("Error: Time:%.24s File:%s Func:%s Line:%d ", get_ctime(&t), file, func, line);
         break;
     default:
         break;

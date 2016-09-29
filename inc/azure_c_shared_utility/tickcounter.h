@@ -13,11 +13,16 @@ extern "C" {
 
 #include "azure_c_shared_utility/umock_c_prod.h"
 
+#ifndef TICKCOUNTER_MS_T_DEFINED
+#define TICKCOUNTER_MS_T_DEFINED
+typedef uint32_t tickcounter_ms_t;
+#endif
+
 	typedef struct TICK_COUNTER_INSTANCE_TAG* TICK_COUNTER_HANDLE;
 
     MOCKABLE_FUNCTION(, TICK_COUNTER_HANDLE, tickcounter_create);
     MOCKABLE_FUNCTION(, void, tickcounter_destroy, TICK_COUNTER_HANDLE, tick_counter);
-    MOCKABLE_FUNCTION(, int, tickcounter_get_current_ms, TICK_COUNTER_HANDLE, tick_counter, uint64_t*, current_ms);
+    MOCKABLE_FUNCTION(, int, tickcounter_get_current_ms, TICK_COUNTER_HANDLE, tick_counter, tickcounter_ms_t*, current_ms);
 
 #ifdef __cplusplus
 }
