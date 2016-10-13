@@ -4,17 +4,17 @@
 #ifndef UARTIO_H
 #define UARTIO_H
 
-#ifdef __cplusplus
-extern "C" {
-#include <cstddef>
-#include <cstdint>
-#else
-#include <stddef.h>
-#include <stdint.h>
-#endif /* __cplusplus */
-
 #include "azure_c_shared_utility/xio.h"
 #include "azure_c_shared_utility/umock_c_prod.h"
+
+#ifdef __cplusplus
+  #include <cstddef>
+  #include <cstdint>
+  extern "C" {
+#else
+  #include <stddef.h>
+  #include <stdint.h>
+#endif /* __cplusplus */
 
 typedef struct UARTIO_CONFIG_TAG
 {
@@ -25,7 +25,7 @@ typedef struct UARTIO_CONFIG_TAG
 MOCKABLE_FUNCTION(, const IO_INTERFACE_DESCRIPTION *, uartio_get_interface_description);
 
 #ifdef __cplusplus
-}
+  }
 #endif /* __cplusplus */
 
 #endif /* UARTIO_H */
