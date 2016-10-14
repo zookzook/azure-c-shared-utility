@@ -70,9 +70,9 @@ int uartio_close (CONCRETE_IO_HANDLE io_handle, ON_IO_CLOSE_COMPLETE on_io_close
 
 #### UARTIO Specific Implementation
 **SRS_UARTIO_27_101: [** If the argument `io_handle` is NOT equal to stored singleton value, `uartio_close()` shall fail and return a non-zero value. **]**  
-**SRS_UARTIO_27_102: [** `uartio_close()` shall await any outstanding bytes by polling `EUSCI_A_UART_queryStatusFlags()` with the `UCBUSY` mask until it returns `false`. **]**  
-**SRS_UARTIO_27_103: [** `uartio_close()` shall disable the UART interrupt by calling `EUSCI_A_UART_disableInterrupt()`. **]**  
-**SRS_UARTIO_27_104: [** `uartio_close()` shall disable the UART by calling `EUSCI_A_UART_disable()`. **]**  
+**SRS_UARTIO_27_102: [** `uartio_close()` shall await any outstanding bytes by polling `(uint8_t)EUSCI_A_UART_queryStatusFlags(uint16_t baseAddress, uint8_t mask)` using the baseAddress of the UART controller, `EUSCI_A1_BASE`, and the mask , `UCBUSY`, until it returns an empty mask. **]**  
+**SRS_UARTIO_27_103: [** `uartio_close()` shall disable the UART interrupt while caching the ring buffer by calling `(void)EUSCI_A_UART_disableInterrupt(uint16_t baseAddress, uint8_t mask)` using the baseAddress of the UART controller, `EUSCI_A1_BASE`, and the mask of the RX interrupt flag, `UCRXIE`. **]**  
+**SRS_UARTIO_27_104: [** `uartio_close()` shall disable the UART by calling `(void)EUSCI_A_UART_disable(uint16_t baseAddress)` using the baseAddress of the UART controller, `EUSCI_A1_BASE`. **]**  
 
 
 ### uartio_create
@@ -149,12 +149,15 @@ void uartio_dowork (CONCRETE_IO_HANDLE io_handle)
 #### UARTIO Specific Implementation
 **SRS_UARTIO_27_116: [** If the argument `io_handle` is NOT equal to stored singleton value, `uartio_dowork()` shall do nothing. **]**  
 **SRS_UARTIO_27_118: [** If the IO is open, `uartio_dowork()` shall read all newly available bytes placed in the ring buffer by the UART interrupt. **]**  
-**SRS_UARTIO_27_121: [** `uartio_dowork()` shall await any outstanding bytes by polling `EUSCI_A_UART_queryStatusFlags()` using the `UCBUSY` mask until it returns `false`. **]**  
-**SRS_UARTIO_27_122: [** `uartio_dowork()` shall disable the UART interrupt while caching the ring buffer by calling `EUSCI_A_UART_disableInterrupt()`. **]**  
-**SRS_UARTIO_27_117: [** If any bytes are in the ring buffer they should be indicated via the `on_bytes_received()` callback passed to `uartio_open()`. **]**  
-**SRS_UARTIO_27_119: [** If a UART error is detected, the error shall be indicated by calling the `on_io_error()` callback passed in `uartio_open()`, while passing the `on_io_error_context` to the callback. **]**  
+**SRS_UARTIO_27_121: [** `uartio_dowork()` shall await any outstanding bytes by polling `(uint8_t)EUSCI_A_UART_queryStatusFlags(uint16_t baseAddress, uint8_t mask)` using the baseAddress of the UART controller, `EUSCI_A1_BASE`, and the mask , `UCBUSY`, until it returns an empty mask. **]**  
+**SRS_UARTIO_27_122: [** `uartio_dowork()` shall disable the UART interrupt while caching the ring buffer by calling `(void)EUSCI_A_UART_disableInterrupt(uint16_t baseAddress, uint8_t mask)` using the baseAddress of the UART controller, `EUSCI_A1_BASE`, and the mask of the RX interrupt flag, `UCRXIE`. **]**  
+**SRS_UARTIO_27_134: [** If any bytes are in the ring buffer, `uartio_dowork()` will move those bytes into the cache buffer. **]**  
+**SRS_UARTIO_27_117: [** If any bytes are in the cache buffer, `uartio_dowork()` will indicate those bytes via the `on_bytes_received()` callback passed to `uartio_open()`. **]**  
+**SRS_UARTIO_27_119: [** If a UART overflow error is detected, the error shall be indicated by calling the `on_io_error()` callback passed in `uartio_open()`, while passing the `on_io_error_context` to the callback. **]**  
+**SRS_UARTIO_27_135: [** If a UART framing error is detected, the error shall be indicated by calling the `on_io_error()` callback passed in `uartio_open()`, while passing the `on_io_error_context` to the callback. **]**  
+**SRS_UARTIO_27_136: [** If a UART parity error is detected, the error shall be indicated by calling the `on_io_error()` callback passed in `uartio_open()`, while passing the `on_io_error_context` to the callback. **]**  
 **SRS_UARTIO_27_120: [** If a buffer overflow is detected, the error shall be indicated by calling the `on_io_error()` callback passed in `uartio_open()`, while passing the `on_io_error_context` to the callback. **]**  
-**SRS_UARTIO_27_123: [** `uartio_dowork()` shall enable the UART interrupt after caching the ring buffer by calling `EUSCI_A_UART_enableInterrupt()`. **]**  
+**SRS_UARTIO_27_123: [** `uartio_dowork()` shall enable the UART interrupt after caching the ring buffer by calling `(void)EUSCI_A_UART_enableInterrupt(uint16_t baseAddress, uint8_t mask)` using the baseAddress of the UART controller, `EUSCI_A1_BASE`, and the mask of the RX interrupt flag, `UCRXIE`. **]**  
 
 
 ### uartio_open
@@ -168,17 +171,18 @@ int uartio_open (CONCRETE_IO_HANDLE io_handle, ON_IO_OPEN_COMPLETE on_io_open_co
 **SRS_UARTIO_27_030: [** If the argument `on_io_open_complete()` is `NULL` then `uartio_open()` shall return a non-zero value. **]**  
 **SRS_UARTIO_27_031: [** If the argument `on_bytes_received()` is `NULL` then `uartio_open()` shall return a non-zero value. **]**  
 **SRS_UARTIO_27_032: [** If the argument `on_io_error()` is `NULL` then `uartio_open()` shall return a non-zero value. **]**  
-**SRS_UARTIO_27_033: [** `uartio_open()` shall open the UART io and on success it shall return 0. **]**  
-**SRS_UARTIO_27_034: [** If `uartio_open()` succeeds, the callback `on_io_open_complete()` shall be called, while passing `on_io_open_complete_context` and `IO_OPEN_OK` as arguments. **]**  
 **SRS_UARTIO_27_035: [** If `uartio_open()` is called while the IO is open, `uartio_open()` shall return a non-zero value without performing any work to open the IO. **]**  
+**SRS_UARTIO_27_033: [** `uartio_open()` shall initiate the opening the UART io and on success it shall return 0. **]**  
+**SRS_UARTIO_27_034: [** If `uartio_open()` succeeds, the callback `on_io_open_complete()` shall be called, while passing `on_io_open_complete_context` and `IO_OPEN_OK` as arguments. **]**  
+**SRS_UARTIO_27_050: [** If `uartio_open()` fails, the callback `on_io_open_complete()` shall be called, while passing `on_io_open_complete_context` and `IO_OPEN_ERROR` as arguments. **]**  
 
 #### UARTIO Specific Implementation
 **SRS_UARTIO_27_124: [** If the argument `io_handle` is NOT equal to stored singleton value, `uartio_open()` shall fail and return a non-zero value. **]**  
-**SRS_UARTIO_27_125: [** `uartio_open()` shall configure the GPIO for UART by calling `GPIO_setAsPeripheralModuleFunctionOutputPin()`. **]**  
-**SRS_UARTIO_27_126: [** `uartio_open()` shall initialize the UART by calling `EUSCI_A_UART_init()`. **]**  
-**SRS_UARTIO_27_127: [** `uartio_open()` shall enable the UART by calling `EUSCI_A_UART_enable()`. **]**  
-**SRS_UARTIO_27_128: [** `uartio_open()` shall enable the UART interrupt by calling `EUSCI_A_UART_enableInterrupt()`. **]**  
-**SRS_UARTIO_27_129: [** `uartio_open()` shall determine the clock speed of the submodule clock to provide the EUSCI parameters by calling `CS_getSMCLK()`. **]**  
+**SRS_UARTIO_27_125: [** `uartio_open()` shall configure the GPIO for UART by calling `(void)GPIO_setAsPeripheralModuleFunctionOutputPin(uint8_t selectedPort, uint16_t selectedPins, uint8_t mode)` using port two, `GPIO_PORT_P2`, pins 5 and 6, and UART functionality with the `GPIO_SECONDARY_MODULE_FUNCTION` identifier. **]**  
+**SRS_UARTIO_27_129: [** `uartio_open()` shall determine the clock speed of the submodule clock to provide the EUSCI parameters by calling `(uint32_t)CS_getSMCLK(void)`. **]**  
+**SRS_UARTIO_27_126: [** `uartio_open()` shall fail if `false` is returned from calling `(bool)EUSCI_A_UART_init(uint16_t baseAddress, EUSCI_A_UART_initParam *param)` using the baseAddress of the UART controller, `EUSCI_A1_BASE`, and the parameters calculated using the clock speed. **]**  
+**SRS_UARTIO_27_127: [** Otherwise, `uartio_open()` shall enable the UART by calling `(void)EUSCI_A_UART_enable(uint16_t baseAddress)` using the baseAddress of the UART controller, `EUSCI_A1_BASE`. **]**  
+**SRS_UARTIO_27_128: [** `uartio_open()` shall enable the UART interrupt by calling `(void)EUSCI_A_UART_enableInterrupt(uint16_t baseAddress, uint8_t mask)` using the baseAddress of the UART controller, `EUSCI_A1_BASE`, and the mask of the RX interrupt flag, `UCRXIE`. **]**  
 
 
 ### uartio_retrieveoptions
@@ -213,7 +217,7 @@ int uartio_send (CONCRETE_IO_HANDLE io_handle, const void * buffer, size_t buffe
 
 #### UARTIO Specific Implementation
 **SRS_UARTIO_27_130: [** If the argument `io_handle` is NOT equal to stored singleton value, `uartio_send()` shall fail and return a non-zero value. **]**  
-**SRS_UARTIO_27_131: [** `uartio_send()` shall send each byte of `buffer` by calling `EUSCI_A_UART_transmitData()` `buffer_size` times. **]**  
+**SRS_UARTIO_27_131: [** `uartio_send()` shall send each byte of `buffer` by calling `(void)EUSCI_A_UART_transmitData(uint16_t baseAddress, uint8_t transmitData)` using the baseAddress of the UART controller, `EUSCI_A1_BASE`, and the byte to be sent, `buffer_size` times. **]**  
 
 
 ### uartio_setoption
