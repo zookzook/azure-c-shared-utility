@@ -7,8 +7,12 @@
 
 #ifdef __cplusplus
   #include <cstdbool>
+  #include <cstddef>
+  #include <cstdint>
 #else
   #include <stdbool.h>
+  #include <stddef.h>
+  #include <stdint.h>
 #endif
 
 #include "driverlib.h"
@@ -42,7 +46,6 @@ uartio_cloneoption(
     const void * option_value_
 );
 
-extern
 int
 uartio_close(
     CONCRETE_IO_HANDLE uartio_,
@@ -50,13 +53,11 @@ uartio_close(
     void * callback_context_
 );
 
-extern
 CONCRETE_IO_HANDLE
 uartio_create(
     void * io_create_parameters_
 );
 
-extern
 void
 uartio_destroy(
     CONCRETE_IO_HANDLE uartio_
@@ -68,13 +69,11 @@ uartio_destroyoption(
     const void * option_value_
 );
 
-extern
 void
 uartio_dowork(
     CONCRETE_IO_HANDLE uartio_
 );
 
-extern
 int
 uartio_open(
     CONCRETE_IO_HANDLE uartio_,
@@ -86,13 +85,11 @@ uartio_open(
     void * on_io_error_context_
 );
 
-extern
 OPTIONHANDLER_HANDLE
 uartio_retrieveoptions(
     CONCRETE_IO_HANDLE uartio_
 );
 
-extern
 int
 uartio_send(
     CONCRETE_IO_HANDLE uartio_,
@@ -102,7 +99,6 @@ uartio_send(
     void * callback_context_
 );
 
-extern
 int
 uartio_setoption(
     CONCRETE_IO_HANDLE uartio_,
@@ -114,11 +110,11 @@ static UartIoState _uartio, * _singleton = NULL;  // Allow state to be stored in
 
 #pragma diag_push
 /*
-* (ULP 7.1) Detected use of global variable "_uartio_interface_description"
-* within one function "uartio_get_interface_description".
-*
-* Recommend placing variable in the function locally
-*/
+ * (ULP 7.1) Detected use of global variable "_uartio_interface_description"
+ * within one function "uartio_get_interface_description".
+ *
+ * Recommend placing variable in the function locally
+ */
 #pragma diag_suppress 1534
 static const IO_INTERFACE_DESCRIPTION _uartio_interface_description = {
     .concrete_io_close = uartio_close,
@@ -134,8 +130,8 @@ static const IO_INTERFACE_DESCRIPTION _uartio_interface_description = {
 
 
 /******************************************************************************
-* Interrupt to signal SIM808 UART RX data is available
-******************************************************************************/
+ * Interrupt to signal SIM808 UART RX data is available
+ ******************************************************************************/
 #pragma vector = USCI_A1_VECTOR
 __interrupt void USCI_A1_ISR(void)
 {
@@ -145,10 +141,10 @@ __interrupt void USCI_A1_ISR(void)
     case 0x02:
 #pragma diag_push
         /*
-        * (ULP 10.1) ISR USCI_A1_ISR calls function EUSCI_A_UART_queryStatusFlags.
-        *
-        * Recommend moving function call away from ISR, or inlining the function, or using pragmas
-        */
+         * (ULP 10.1) ISR USCI_A1_ISR calls function EUSCI_A_UART_queryStatusFlags.
+         *
+         * Recommend moving function call away from ISR, or inlining the function, or using pragmas
+         */
 #pragma diag_suppress 1538
         _uartio.eusci_a1_rx_error |= EUSCI_A_UART_queryStatusFlags(EUSCI_A1_BASE, (EUSCI_A_UART_FRAMING_ERROR | EUSCI_A_UART_OVERRUN_ERROR | EUSCI_A_UART_PARITY_ERROR));
         _uartio.eusci_a1_ring_buffer[_uartio.eusci_a1_ring_buffer_head] = EUSCI_A_UART_receiveData(EUSCI_A1_BASE);
@@ -264,10 +260,10 @@ secondModulationRegisterValueFromFractionalPortion (
 
 
 /******************************************************************************
-* Initialize EUSCI_A parameters required to communicate with the SIM808
-*
-* NOTE: MSP430FR5969 User's Guide 24.3.10
-******************************************************************************/
+ * Initialize EUSCI_A parameters required to communicate with the SIM808
+ *
+ * NOTE: MSP430FR5969 User's Guide 24.3.10
+ ******************************************************************************/
 static inline
 void
 initializeEusciAParametersForSMClkAtBaudRate(
@@ -284,16 +280,16 @@ initializeEusciAParametersForSMClkAtBaudRate(
     // Algorithm from User's Guide (Section 24.3.10)
 #pragma diag_push
     /*
-    * (ULP 5.1) Detected divide operation(s).
-    *
-    * Recommend moving them to RAM during run time or not using as these are processing/power intensive
-    */
+     * (ULP 5.1) Detected divide operation(s).
+     *
+     * Recommend moving them to RAM during run time or not using as these are processing/power intensive
+     */
 #pragma diag_suppress 1530
     /*
-    * (ULP 5.2) Detected floating point operation(s).
-    *
-    * Recommend moving them to RAM during run time or not using as these are processing/power intensive
-    */
+     * (ULP 5.2) Detected floating point operation(s).
+     *
+     * Recommend moving them to RAM during run time or not using as these are processing/power intensive
+     */
 #pragma diag_suppress 1531
     factor_N = (CS_getSMCLK() / (float)baud_rate_);
 
@@ -321,12 +317,23 @@ initializeEusciAParametersForSMClkAtBaudRate(
     eusci_a_parameters_->overSampling = mask_UCOS16;
 }
 
+
 static
 void
-closedFromDestroy (
+internal_uarito_close_callback_required_when_closed_from_uartio_destroy(
     void * context
 ) {
     (void)context;
+}
+
+
+void *
+uartio_cloneoption(
+    const char * option_name_,
+    const void * option_value_
+) {
+    (void)option_name_, option_value_;
+    return NULL;
 }
 
 
@@ -336,7 +343,6 @@ uartio_close(
     ON_IO_CLOSE_COMPLETE on_io_close_complete_,
     void * callback_context_
 ) {
-    (void)callback_context_;
     int result;
 
     if (NULL == uartio_) {
@@ -350,10 +356,10 @@ uartio_close(
     } else {
         // Wait for outstanding UART transactions to complete
         for (; 0x00 != EUSCI_A_UART_queryStatusFlags(EUSCI_A1_BASE, EUSCI_A_UART_BUSY););
-        (void)EUSCI_A_UART_disableInterrupt(EUSCI_A1_BASE, EUSCI_A_UART_RECEIVE_INTERRUPT);
-        (void)EUSCI_A_UART_disable(EUSCI_A1_BASE);
+        EUSCI_A_UART_disableInterrupt(EUSCI_A1_BASE, EUSCI_A_UART_RECEIVE_INTERRUPT);
+        EUSCI_A_UART_disable(EUSCI_A1_BASE);
         _uartio.open = false;
-        (void)on_io_close_complete_(callback_context_);
+        on_io_close_complete_(callback_context_);
         result = 0;
     }
 
@@ -382,7 +388,7 @@ uartio_create(
     } else if (NULL == (_uartio.eusci_a1_ring_buffer = (uint8_t *)malloc(uartio_config->ring_buffer_size))) {
         result = NULL;
     } else if (NULL == (_uartio.eusci_a1_cache_buffer = (uint8_t *)malloc(uartio_config->ring_buffer_size))) {
-        (void)free(_uartio.eusci_a1_ring_buffer);
+        free(_uartio.eusci_a1_ring_buffer);
         result = NULL;
     } else {
         _uartio.config.baud_rate = uartio_config->baud_rate;
@@ -405,11 +411,20 @@ uartio_destroy(
         LogError("Invalid handle passed to uartio_destroy!");
     } else {
         // Best effort close, cannot check error conditions
-        (void)uartio_close(uartio_, closedFromDestroy, NULL);
+        (void)uartio_close(uartio_, internal_uarito_close_callback_required_when_closed_from_uartio_destroy, NULL);
         _singleton = NULL;
-        (void)free(_uartio.eusci_a1_ring_buffer);
-        (void)free(_uartio.eusci_a1_cache_buffer);
+        free(_uartio.eusci_a1_ring_buffer);
+        free(_uartio.eusci_a1_cache_buffer);
     }
+}
+
+
+void
+uartio_destroyoption(
+    const char * option_name_,
+    const void * option_value_
+) {
+    (void)option_name_, option_value_;
 }
 
 
@@ -428,7 +443,7 @@ uartio_dowork(
         size_t index = 0;
 
         // BEGIN CRITICAL SECTION
-        (void)EUSCI_A_UART_disableInterrupt(EUSCI_A1_BASE, EUSCI_A_UART_RECEIVE_INTERRUPT); {
+        EUSCI_A_UART_disableInterrupt(EUSCI_A1_BASE, EUSCI_A_UART_RECEIVE_INTERRUPT); {
             error = (_uartio.eusci_a1_ring_buffer_overflow | _uartio.eusci_a1_rx_error);
             _uartio.eusci_a1_ring_buffer_overflow = false;
             _uartio.eusci_a1_rx_error = 0x00;
@@ -448,7 +463,7 @@ uartio_dowork(
                 } while (_uartio.eusci_a1_ring_buffer_head != _uartio.eusci_a1_ring_buffer_tail);
             }
             _uartio.eusci_a1_ring_buffer_full = false;
-        } (void)EUSCI_A_UART_enableInterrupt(EUSCI_A1_BASE, EUSCI_A_UART_RECEIVE_INTERRUPT);
+        } EUSCI_A_UART_enableInterrupt(EUSCI_A1_BASE, EUSCI_A_UART_RECEIVE_INTERRUPT);
         // END CRITICAL SECTION
 
         if (0 != index) { _uartio.on_bytes_received(_uartio.on_bytes_received_context, _uartio.eusci_a1_cache_buffer, index); }
@@ -475,7 +490,6 @@ uartio_open(
     ON_IO_ERROR on_io_error_,
     void * on_io_error_context_
 ) {
-    (void)on_bytes_received_context_, on_io_error_context_;
     int result;
 
     if (NULL == uartio_) {
@@ -492,11 +506,11 @@ uartio_open(
         result = __LINE__;
     } else {
         // Initialize EUSCI_A1 Port Pins
-        (void)GPIO_setAsPeripheralModuleFunctionOutputPin(GPIO_PORT_P2, (GPIO_PIN5|GPIO_PIN6), GPIO_SECONDARY_MODULE_FUNCTION);
+        GPIO_setAsPeripheralModuleFunctionOutputPin(GPIO_PORT_P2, (GPIO_PIN5|GPIO_PIN6), GPIO_SECONDARY_MODULE_FUNCTION);
 
         // Initialize UART responsible for communication with SIM808
         EUSCI_A_UART_initParam eusci_a_parameters = { 0 };
-        (void)initializeEusciAParametersForSMClkAtBaudRate(&eusci_a_parameters, _uartio.config.baud_rate);
+        initializeEusciAParametersForSMClkAtBaudRate(&eusci_a_parameters, _uartio.config.baud_rate);
         if (!EUSCI_A_UART_init(EUSCI_A1_BASE, &eusci_a_parameters)) {
             result = __LINE__;
         } else {
@@ -505,8 +519,8 @@ uartio_open(
             _uartio.eusci_a1_ring_buffer_overflow = false;
             _uartio.eusci_a1_rx_error = 0x00;
             _uartio.open = true;
-            (void)EUSCI_A_UART_enable(EUSCI_A1_BASE);
-            (void)EUSCI_A_UART_enableInterrupt(EUSCI_A1_BASE, EUSCI_A_UART_RECEIVE_INTERRUPT);
+            EUSCI_A_UART_enable(EUSCI_A1_BASE);
+            EUSCI_A_UART_enableInterrupt(EUSCI_A1_BASE, EUSCI_A_UART_RECEIVE_INTERRUPT);
             _uartio.on_bytes_received = on_bytes_received_;
             _uartio.on_bytes_received_context = on_bytes_received_context_;
             _uartio.on_io_error = on_io_error_;
@@ -515,7 +529,7 @@ uartio_open(
         }
     }
 
-    if (NULL != on_io_open_complete_) { (void)on_io_open_complete_(on_io_open_complete_context_, ((0 == result) ? IO_OPEN_OK : IO_OPEN_ERROR)); }
+    if (NULL != on_io_open_complete_) { on_io_open_complete_(on_io_open_complete_context_, ((0 == result) ? IO_OPEN_OK : IO_OPEN_ERROR)); }
     return result;
 }
 
@@ -564,7 +578,7 @@ uartio_send(
         size_t i = 0;
         uint8_t * buffer = (uint8_t *)buffer_;
         for (; i < buffer_size_; ++i) {
-            (void)EUSCI_A_UART_transmitData(EUSCI_A1_BASE, buffer[i]);
+            EUSCI_A_UART_transmitData(EUSCI_A1_BASE, buffer[i]);
         }
         result = 0;
     }
@@ -580,55 +594,7 @@ uartio_setoption(
     const char * const option_name_,
     const void * const option_value_
 ) {
-    (void)option_value_;
-    int result;
-
-    if (NULL == uartio_) {
-        result = __LINE__;
-    } else if (_singleton != uartio_) {
-        result = __LINE__;
-    } else if (NULL == option_name_) {
-        result = __LINE__;
-    } else {
-        result = __LINE__;
-    }
-
-    return result;
-}
-
-
-void *
-uartio_cloneoption(
-    const char * option_name_,
-    const void * option_value_
-) {
-    (void)option_value_;
-    void * result;
-
-    if (NULL == option_name_) {
-        result = NULL;
-    } else if (NULL == option_value_) {
-        result = NULL;
-    } else {
-        result = NULL;
-    }
-
-    return result;
-}
-
-
-void
-uartio_destroyoption(
-    const char * option_name_,
-    const void * option_value_
-) {
-    (void)option_name_, option_value_;
-    if (NULL == option_name_) {
-        LogError("NULL parameter passed to uartio_destroyoption as option_name");
-    } else if (NULL == option_value_) {
-        LogError("NULL parameter passed to uartio_destroyoption as option_value");
-    } else {
-        LogError("Unknown option_name passed to uartio_destroyoption");
-    }
+    (void)uartio_, option_name_, option_value_;
+    return __LINE__;
 }
 
