@@ -505,9 +505,6 @@ uartio_open(
     } else if (_uartio.open) {
         result = __LINE__;
     } else {
-        // Initialize EUSCI_A1 Port Pins
-        GPIO_setAsPeripheralModuleFunctionOutputPin(GPIO_PORT_P2, (GPIO_PIN5|GPIO_PIN6), GPIO_SECONDARY_MODULE_FUNCTION);
-
         // Initialize UART responsible for communication with SIM808
         EUSCI_A_UART_initParam eusci_a_parameters = { 0 };
         initializeEusciAParametersForSMClkAtBaudRate(&eusci_a_parameters, _uartio.config.baud_rate);
