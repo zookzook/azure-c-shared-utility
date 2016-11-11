@@ -173,6 +173,7 @@ int uartio_open (CONCRETE_IO_HANDLE io_handle, ON_IO_OPEN_COMPLETE on_io_open_co
 
 #### UARTIO Specific Implementation
 **SRS_UARTIO_27_124: [** If the argument `io_handle` is NOT equal to the value returned by `uartio_create()`, then `uartio_open()` shall fail and return a non-zero value. **]**  
+**SRS_UARTIO_27_125: [** `uartio_open()` shall enable clock request for the submodule clock by calling `(void)CS_enableClockRequest(uint8_t selectClock)` using the `CS_SMCLK` identifier. **]**  
 **SRS_UARTIO_27_126: [** `uartio_open()` shall determine the clock speed of the submodule clock by calling `(uint32_t)CS_getSMCLK(void)`. **]**  
 **SRS_UARTIO_27_127: [** `uartio_open()` shall call `(bool)EUSCI_A_UART_init(uint16_t baseAddress, EUSCI_A_UART_initParam *param)` using EUSCI_A_UART_CLOCKSOURCE_SMCLK as the first member of the initialization parameters. **]**  
 **SRS_UARTIO_27_128: [** `uartio_open()` shall call `(bool)EUSCI_A_UART_init(uint16_t baseAddress, EUSCI_A_UART_initParam *param)` using EUSCI_A_UART_NO_PARITY as the fifth member of the initialization parameters. **]**  

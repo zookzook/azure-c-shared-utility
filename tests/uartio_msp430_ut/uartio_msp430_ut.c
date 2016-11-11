@@ -205,6 +205,8 @@ mock_OptionHandler_Create(
   IMPLEMENT_UMOCK_C_ENUM_TYPE(IO_SEND_RESULT, IO_SEND_RESULT_VALUES);
 
   // ** Mocking cs.h module (driverlib.h)
+  MOCK_FUNCTION_WITH_CODE(, void, CS_enableClockRequest, uint8_t, selectClock)
+  MOCK_FUNCTION_END();
   MOCK_FUNCTION_WITH_CODE(, uint32_t, CS_getSMCLK)
   MOCK_FUNCTION_END(MOCK_CLOCK_HZ);
 
@@ -981,6 +983,7 @@ TEST_FUNCTION(uartio_dowork_SCENARIO_success)
         .SetReturn('\n');
     USCI_A1_ISR();
 
+    STRICT_EXPECTED_CALL(CS_enableClockRequest(CS_SMCLK));
     EXPECTED_CALL(CS_getSMCLK());
     STRICT_EXPECTED_CALL(EUSCI_A_UART_init(EUSCI_A1_BASE, &eusci_a_parameters));
     STRICT_EXPECTED_CALL(EUSCI_A_UART_enable(EUSCI_A1_BASE));
@@ -1268,6 +1271,7 @@ TEST_FUNCTION(uartio_open_SCENARIO_invalid_handle)
 
 /* SRS_UARTIO_27_029: [ If no errors are encountered, `uartio_open()` shall return 0. ] */
 /* SRS_UARTIO_27_030: [ If `uartio_open()` succeeds, the callback `on_io_open_complete()` shall be called, while passing `on_io_open_complete_context` and `IO_OPEN_OK` as arguments. ] */
+/* SRS_UARTIO_27_125: [ `uartio_open()` shall enable clock request for the submodule clock by calling `(void)CS_enableClockRequest(uint8_t selectClock)` using the `CS_SMCLK` identifier. ] */  
 /* SRS_UARTIO_27_126: [ `uartio_open()` shall determine the clock speed of the submodule clock by calling `(uint32_t)CS_getSMCLK(void)`. ] */
 /* SRS_UARTIO_27_127: [ `uartio_open()` shall call `(bool)EUSCI_A_UART_init(uint16_t baseAddress, EUSCI_A_UART_initParam *param)` using EUSCI_A_UART_CLOCKSOURCE_SMCLK as the first member of the initialization parameters. ] */
 /* SRS_UARTIO_27_128: [ `uartio_open()` shall call `(bool)EUSCI_A_UART_init(uint16_t baseAddress, EUSCI_A_UART_initParam *param)` using EUSCI_A_UART_NO_PARITY as the fifth member of the initialization parameters. ] */
@@ -1290,6 +1294,7 @@ TEST_FUNCTION(uartio_open_SCENARIO_success)
 
     // Expected call listing
     umock_c_reset_all_calls();
+    STRICT_EXPECTED_CALL(CS_enableClockRequest(CS_SMCLK));
     EXPECTED_CALL(CS_getSMCLK());
     STRICT_EXPECTED_CALL(EUSCI_A_UART_init(EUSCI_A1_BASE, &eusci_a_parameters));
     STRICT_EXPECTED_CALL(EUSCI_A_UART_enable(EUSCI_A1_BASE));
@@ -1420,6 +1425,7 @@ TEST_FUNCTION(uartio_open_SCENARIO_negative_tests)
 
     // Expected call listing
     umock_c_reset_all_calls();
+    STRICT_EXPECTED_CALL(CS_enableClockRequest(CS_SMCLK));
     EXPECTED_CALL(CS_getSMCLK());
     STRICT_EXPECTED_CALL(EUSCI_A_UART_init(EUSCI_A1_BASE, &eusci_a_parameters))
         .SetFailReturn(false);
@@ -1430,7 +1436,7 @@ TEST_FUNCTION(uartio_open_SCENARIO_negative_tests)
 
     for (size_t i = 0; i < umock_c_negative_tests_call_count(); ++i)
     {
-        if (i != 1) { continue; }
+        if (i != 2) { continue; }
         umock_c_negative_tests_reset();
         umock_c_negative_tests_fail_call(i);
 

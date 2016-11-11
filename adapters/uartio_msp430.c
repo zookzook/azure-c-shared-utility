@@ -505,6 +505,9 @@ uartio_open(
     } else if (_uartio.open) {
         result = __LINE__;
     } else {
+        // Ensure the SMCLK is available to the UART module
+        CS_enableClockRequest(CS_SMCLK);
+
         // Initialize UART responsible for communication with SIM808
         EUSCI_A_UART_initParam eusci_a_parameters = { 0 };
         initializeEusciAParametersForSMClkAtBaudRate(&eusci_a_parameters, _uartio.config.baud_rate);
