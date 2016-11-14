@@ -299,12 +299,10 @@ TEST_FUNCTION_INITIALIZE(TestMethodInitialize)
     {
         ASSERT_FAIL("our mutex is ABANDONED. Failure in test framework");
     }
-    umock_c_reset_all_calls();
 }
 
 TEST_FUNCTION_CLEANUP(TestMethodCleanup)
 {
-    umock_c_reset_all_calls();
     TEST_MUTEX_RELEASE(g_testByTest);
 }
 
