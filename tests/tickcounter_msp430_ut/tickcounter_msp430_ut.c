@@ -306,8 +306,8 @@ TEST_FUNCTION(tickcounter_create_SCENARIO_negative_tests)
 
 // timer_a3_deinit
 
-/* SRS_UARTIO_27_011: [ `timer_a3_deinit()` shall disable the interrupt by calling `(void)Timer_A_disableInterrupt(uint16_t baseAddress)` using `TIMER_A3_BASE` as `baseAddress`. ] */
-/* SRS_UARTIO_27_012: [ `timer_a3_deinit()` shall stop the underlying timer by calling `(void)Timer_A_stop(uint16_t baseAddress)` using `TIMER_A3_BASE` as `baseAddress`. ] */
+/* SRS_UARTIO_27_012: [ `timer_a3_deinit()` shall disable the interrupt by calling `(void)Timer_A_disableInterrupt(uint16_t baseAddress)` using `TIMER_A3_BASE` as `baseAddress`. ] */
+/* SRS_UARTIO_27_013: [ `timer_a3_deinit()` shall stop the underlying timer by calling `(void)Timer_A_stop(uint16_t baseAddress)` using `TIMER_A3_BASE` as `baseAddress`. ] */
 TEST_FUNCTION(timer_a3_deinit_SCENARIO_success)
 {
     // Arrange
@@ -374,15 +374,15 @@ TEST_FUNCTION(tickcounter_destroy_SCENARIO_NULL_handle)
 
 // timer_a3_init
 
-/* SRS_UARTIO_27_013: [ `timer_a3_init()` shall enable clock request for the auxillary clock by calling `(void)CS_enableClockRequest(uint8_t selectClock)` using the `CS_ACLK` identifier. ] */  
-/* SRS_UARTIO_27_014: [ `timer_a3_init()` shall determine the clock speed of the auxillary clock by calling `(uint32_t)CS_getACLK(void)`. ] */  
-/* SRS_UARTIO_27_016: [ `timer_a3_init()` shall call `(void)Timer_A_initContinuousMode(uint16_t baseAddress, Timer_A_initContinuousModeParam *param)`  using `TIMER_A3_BASE` as `baseAddress`. ] */  
-/* SRS_UARTIO_27_017: [ `timer_a3_init()` shall call `(void)Timer_A_initContinuousMode(uint16_t baseAddress, Timer_A_initContinuousModeParam *param)` using `TIMER_A_CLOCKSOURCE_ACLK` as the first member of the initialization parameters. ] */  
-/* SRS_UARTIO_27_018: [ `timer_a3_init()` shall call `(void)Timer_A_initContinuousMode(uint16_t baseAddress, Timer_A_initContinuousModeParam *param)` using `TIMER_A_CLOCKSOURCE_DIVIDER_16` as the second member of the initialization parameters. ] */
-/* SRS_UARTIO_27_019: [ `timer_a3_init()` shall call `(void)Timer_A_initContinuousMode(uint16_t baseAddress, Timer_A_initContinuousModeParam *param)` using `TIMER_A_TAIE_INTERRUPT_ENABLE` as the third member of the initialization parameters. ] */
-/* SRS_UARTIO_27_020: [ `timer_a3_init()` shall call `(void)Timer_A_initContinuousMode(uint16_t baseAddress, Timer_A_initContinuousModeParam *param)` using `TIMER_A_SKIP_CLEAR` as the fourth member of the initialization parameters. ] */
-/* SRS_UARTIO_27_021: [ `timer_a3_init()` shall call `(void)Timer_A_initContinuousMode(uint16_t baseAddress, Timer_A_initContinuousModeParam *param)` using `true` as the fifth member of the initialization parameters. ] */
-/* SRS_UARTIO_27_022: [ If no errors occur, then `timer_a3_init()` shall return zero. ] */
+/* SRS_UARTIO_27_014: [ `timer_a3_init()` shall enable clock request for the auxillary clock by calling `(void)CS_enableClockRequest(uint8_t selectClock)` using the `CS_ACLK` identifier. ] */  
+/* SRS_UARTIO_27_015: [ `timer_a3_init()` shall determine the clock speed of the auxillary clock by calling `(uint32_t)CS_getACLK(void)`. ] */  
+/* SRS_UARTIO_27_017: [ `timer_a3_init()` shall call `(void)Timer_A_initContinuousMode(uint16_t baseAddress, Timer_A_initContinuousModeParam *param)`  using `TIMER_A3_BASE` as `baseAddress`. ] */  
+/* SRS_UARTIO_27_018: [ `timer_a3_init()` shall call `(void)Timer_A_initContinuousMode(uint16_t baseAddress, Timer_A_initContinuousModeParam *param)` using `TIMER_A_CLOCKSOURCE_ACLK` as the first member of the initialization parameters. ] */  
+/* SRS_UARTIO_27_019: [ `timer_a3_init()` shall call `(void)Timer_A_initContinuousMode(uint16_t baseAddress, Timer_A_initContinuousModeParam *param)` using `TIMER_A_CLOCKSOURCE_DIVIDER_16` as the second member of the initialization parameters. ] */
+/* SRS_UARTIO_27_020: [ `timer_a3_init()` shall call `(void)Timer_A_initContinuousMode(uint16_t baseAddress, Timer_A_initContinuousModeParam *param)` using `TIMER_A_TAIE_INTERRUPT_ENABLE` as the third member of the initialization parameters. ] */
+/* SRS_UARTIO_27_021: [ `timer_a3_init()` shall call `(void)Timer_A_initContinuousMode(uint16_t baseAddress, Timer_A_initContinuousModeParam *param)` using `TIMER_A_SKIP_CLEAR` as the fourth member of the initialization parameters. ] */
+/* SRS_UARTIO_27_022: [ `timer_a3_init()` shall call `(void)Timer_A_initContinuousMode(uint16_t baseAddress, Timer_A_initContinuousModeParam *param)` using `true` as the fifth member of the initialization parameters. ] */
+/* SRS_UARTIO_27_023: [ If no errors occur, then `timer_a3_init()` shall return zero. ] */
 TEST_FUNCTION(timer_a3_init_SCENARIO_success)
 {
     // Arrange
@@ -412,7 +412,7 @@ TEST_FUNCTION(timer_a3_init_SCENARIO_success)
     timer_a3_deinit();
 }
 
-/* SRS_UARTIO_27_015: [ If the auxillary clock speed is less than 16kHz, then `timer_a3_init()` shall fail immediately and return a non-zero value. ] */  
+/* SRS_UARTIO_27_016: [ If the auxillary clock speed is less than 16kHz, then `timer_a3_init()` shall fail immediately and return a non-zero value. ] */  
 TEST_FUNCTION(timer_a3_init_SCENARIO_slow_clock)
 {
     // Arrange
@@ -441,6 +441,7 @@ TEST_FUNCTION(timer_a3_init_SCENARIO_slow_clock)
 /* SRS_UARTIO_27_008: [ `tickcounter_get_current_ms()` shall query the current tick count by calling `(uint16_t)Timer_A_getCounterValue(uint16_t baseAddress)` using `TIMER_A3_BASE` as `baseAddress`. ] */  
 /* SRS_UARTIO_27_009: [ `tickcounter_get_current_ms()` shall return the number of milliseconds between that have passed between the time `tickcounter_create()` was called and now. ] */  
 /* SRS_UARTIO_27_010: [ If no errors occur, then `tickcounter_get_current_ms()` shall return zero. ] */  
+/* SRS_UARTIO_27_011: [ When the TIMER_A3 overflows its `uint16_t` storage, the tick count value is accumulated and accurately represented in milliseconds. ] */
 TEST_FUNCTION(tickcounter_get_current_ms_SCENARIO_success)
 {
     // Arrange
@@ -450,18 +451,19 @@ TEST_FUNCTION(tickcounter_get_current_ms_SCENARIO_success)
     TICK_COUNTER_HANDLE tick_counter = tickcounter_create();
     ASSERT_ARE_EQUAL(int, 0, error);
     ASSERT_IS_NOT_NULL(tick_counter);
+    TIMER3_A1_ISR(); // simulate counter overflow interrupt
 
     // Expected call listing
     umock_c_reset_all_calls();
     STRICT_EXPECTED_CALL(Timer_A_getCounterValue(TIMER_A3_BASE))
-        .SetReturn(22345);
+        .SetReturn(2345);
 
     // Act
     error = tickcounter_get_current_ms(tick_counter, &ms);
 
     // Assert
     ASSERT_ARE_EQUAL(char_ptr, umock_c_get_expected_calls(), umock_c_get_actual_calls());
-    ASSERT_ARE_EQUAL(int, 4883, ms);
+    ASSERT_ARE_EQUAL(int, 27118, ms);
     ASSERT_ARE_EQUAL(int, 0, error);
 
     // Cleanup

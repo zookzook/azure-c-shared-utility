@@ -18,6 +18,10 @@
 #include "azure_c_shared_utility/gballoc.h"
 #include "azure_c_shared_utility/xlogging.h"
 
+#ifdef _MSC_VER
+  #pragma warning(disable:4068)
+#endif
+
 typedef struct tick_t {
     tickcounter_ms_t tick_count;
     uint16_t tick_overflows;
@@ -41,15 +45,36 @@ static tickcount_t system_ticks;
 */
 static tickcounter_ms_t timer_a3_ticks_per_second;
 
+/******************************************************************************
+* Interrupt to signal overflow of timer counter
+******************************************************************************/
+#pragma vector = TIMER3_A1_VECTOR
+__interrupt void TIMER3_A1_ISR(void)
+{
+    switch (__even_in_range(TA3IV, 14))
+    {
+    case TA3IV_NONE: break;
+    case TA3IV_TACCR1: break;
+    case TA3IV_3: break;
+    case TA3IV_4: break;
+    case TA3IV_5: break;
+    case TA3IV_6: break;
+    case TA3IV_TAIFG:
+        ++system_ticks.timer_a.counter_overflows;
+        break;
+    default: __never_executed();
+    }
+}
+
+
 static inline
 tickcounter_ms_t
 now_ms (
     void
 ) {
-    // Approximate milliseconds with most accurate calculation that cannot overflow 32-bits
-    // Requires calculating the ticks and overflows seperately, then summing the parts.
-    return (((((system_ticks.timer_a.counter_overflows << 6) * 1000) / timer_a3_ticks_per_second) << 10) + ((system_ticks.timer_a.counter_value * 1000) / timer_a3_ticks_per_second));
+    return ((tickcounter_ms_t)(((system_ticks.timer_a.counter_overflows / (float)timer_a3_ticks_per_second) * 65536000) + ((system_ticks.timer_a.counter_value / (float)timer_a3_ticks_per_second) * 1000)));
 }
+
 
 TICK_COUNTER_HANDLE tickcounter_create(void)
 {
@@ -65,11 +90,13 @@ TICK_COUNTER_HANDLE tickcounter_create(void)
     return (TICK_COUNTER_HANDLE)creation_offset_ms;
 }
 
+
 void timer_a3_deinit(void)
 {
     Timer_A_disableInterrupt(TIMER_A3_BASE);
     Timer_A_stop(TIMER_A3_BASE);
 }
+
 
 void tickcounter_destroy(TICK_COUNTER_HANDLE tick_counter)
 {
@@ -79,6 +106,7 @@ void tickcounter_destroy(TICK_COUNTER_HANDLE tick_counter)
         free(tick_counter);
     }
 }
+
 
 int timer_a3_init(void)
 {
@@ -109,6 +137,7 @@ int timer_a3_init(void)
     return error;
 }
 
+
 int tickcounter_get_current_ms(TICK_COUNTER_HANDLE tick_counter, tickcounter_ms_t * current_ms)
 {
     int error;
@@ -124,3 +153,4 @@ int tickcounter_get_current_ms(TICK_COUNTER_HANDLE tick_counter, tickcounter_ms_
     }
     return error;
 }
+
