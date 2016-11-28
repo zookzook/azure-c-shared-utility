@@ -72,7 +72,7 @@ tickcounter_ms_t
 now_ms (
     void
 ) {
-    return ((tickcounter_ms_t)(((system_ticks.timer_a.counter_overflows / (float)timer_a3_ticks_per_second) * 65536000) + ((system_ticks.timer_a.counter_value / (float)timer_a3_ticks_per_second) * 1000)));
+    return ((tickcounter_ms_t)(((system_ticks.timer_a.counter_overflows / (float)timer_a3_ticks_per_second) * 65536000.0) + ((system_ticks.timer_a.counter_value / (float)timer_a3_ticks_per_second) * 1000.0)));
 }
 
 
@@ -81,7 +81,7 @@ TICK_COUNTER_HANDLE tickcounter_create(void)
     tickcounter_ms_t * creation_offset_ms;
 
     if (NULL == (creation_offset_ms = (tickcounter_ms_t *)malloc(sizeof(tickcounter_ms_t)))) {
-        creation_offset_ms = (tickcounter_ms_t *)NULL;
+        // Insufficient memory
     } else {
         system_ticks.timer_a.counter_value = Timer_A_getCounterValue(TIMER_A3_BASE);
         *creation_offset_ms = now_ms();

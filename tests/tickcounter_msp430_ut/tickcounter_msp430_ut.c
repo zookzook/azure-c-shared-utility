@@ -356,7 +356,6 @@ TEST_FUNCTION(tickcounter_destroy_SCENARIO_success)
 TEST_FUNCTION(tickcounter_destroy_SCENARIO_NULL_handle)
 {
     // Arrange
-    timer_a3_init();
 
     // Expected call listing
     umock_c_reset_all_calls();
@@ -368,7 +367,6 @@ TEST_FUNCTION(tickcounter_destroy_SCENARIO_NULL_handle)
     ASSERT_ARE_EQUAL(char_ptr, umock_c_get_expected_calls(), umock_c_get_actual_calls());
 
     // Cleanup
-    timer_a3_deinit();
 }
 
 
