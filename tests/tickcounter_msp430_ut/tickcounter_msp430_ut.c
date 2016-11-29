@@ -397,7 +397,7 @@ TEST_FUNCTION(timer_a3_init_SCENARIO_success)
     umock_c_reset_all_calls();
     STRICT_EXPECTED_CALL(CS_enableClockRequest(CS_ACLK));
     EXPECTED_CALL(CS_getACLK());
-    STRICT_EXPECTED_CALL(Timer_A_initContinuousMode(TIMER_A_CLOCKSOURCE_ACLK, &param));
+    STRICT_EXPECTED_CALL(Timer_A_initContinuousMode(TIMER_A3_BASE, &param));
 
     // Act
     error = timer_a3_init();

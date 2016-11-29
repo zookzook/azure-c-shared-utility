@@ -130,7 +130,7 @@ int timer_a3_init(void)
             .timerClear = TIMER_A_SKIP_CLEAR,
             .startTimer = true,
         };
-        Timer_A_initContinuousMode(TIMER_A_CLOCKSOURCE_ACLK, &param);
+        Timer_A_initContinuousMode(TIMER_A3_BASE, &param);
         error = 0;
     }
 
