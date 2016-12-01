@@ -215,6 +215,7 @@ int uartio_send (CONCRETE_IO_HANDLE io_handle, const void * buffer, size_t buffe
 **SRS_UARTIO_27_043: [** If `buffer_size` is 0, `uartio_send()` shall fail and return a non-zero value. **]**  
 **SRS_UARTIO_27_044: [** If parameter `on_send_complete` is NULL, `uartio_send()` shall fail and return a non-zero value. **]**  
 **SRS_UARTIO_27_045: [** If `uartio_send()` is called when the IO is not open, `uartio_send()` shall fail and return a non-zero value. **]**  
+**SRS_UARTIO_27_049: [** If the buffer passed as argument `buffer` has NULL bytes (0x00), `uartio_send()` shall send those bytes to the UART controller. **]**  
 
 #### UARTIO Specific Implementation
 **SRS_UARTIO_27_136: [** If the argument `io_handle` is NOT equal to the value returned by `uartio_create()`, then `uartio_send()` shall fail and return a non-zero value. **]**  

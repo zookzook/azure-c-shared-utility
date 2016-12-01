@@ -1603,6 +1603,7 @@ TEST_FUNCTION(uartio_send_SCENARIO_invalid_handle)
 /* SRS_UARTIO_27_137: [ `uartio_send()` shall send each byte of `buffer` by calling `(void)EUSCI_A_UART_transmitData(uint16_t baseAddress, uint8_t transmitData)` using the baseAddress of the UART controller, `EUSCI_A1_BASE`, and the byte to be sent, `buffer_size` times. ] */
 /* SRS_UARTIO_27_040: [ If `uartio_send()` completes without errors, `on_send_complete()` shall be called while passing to it the `on_send_complete_context` value and `IO_SEND_OK` as arguments. ] */
 /* SRS_UARTIO_27_041: [ If `uartio_send()` completes without errors, it shall return 0. ] */
+/* SRS_UARTIO_27_049: [ If the buffer passed as argument `buffer` has NULL bytes(0x00), `uartio_send()` shall send those bytes to the UART controller. ] */  
 TEST_FUNCTION(uartio_send_SCENARIO_success)
 {
     // Arrange
@@ -1618,10 +1619,11 @@ TEST_FUNCTION(uartio_send_SCENARIO_success)
     umock_c_reset_all_calls();
     STRICT_EXPECTED_CALL(EUSCI_A_UART_transmitData(EUSCI_A1_BASE, 'A'));
     STRICT_EXPECTED_CALL(EUSCI_A_UART_transmitData(EUSCI_A1_BASE, 'T'));
+    STRICT_EXPECTED_CALL(EUSCI_A_UART_transmitData(EUSCI_A1_BASE, '\0'));
     STRICT_EXPECTED_CALL(mock_on_send_complete(&result, IO_SEND_OK));
 
     // Act
-    result = io_interface->concrete_io_send(xio, "AT", 2, mock_on_send_complete, &result);
+    result = io_interface->concrete_io_send(xio, "AT", sizeof("AT"), mock_on_send_complete, &result);
 
     // Assert
     ASSERT_ARE_EQUAL(char_ptr, umock_c_get_expected_calls(), umock_c_get_actual_calls());
