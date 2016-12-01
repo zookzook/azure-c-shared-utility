@@ -54,6 +54,7 @@ endif()
 
 #Add adapters tests
 add_subdirectory(platformarduino_ut)
+add_subdirectory(platform_msp430_ut)
 add_subdirectory(tickcounter_msp430_ut)
 add_subdirectory(tlsioarduino_ut)
 if(use_cyclonessl AND WIN32)
