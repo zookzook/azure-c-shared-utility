@@ -17,29 +17,7 @@
 #pragma warning(disable:4068)
 #endif
 
-/******************************************************************************
- * Interrupt to signal SIM808 UART module has become available
- ******************************************************************************/
-#pragma vector=PORT3_VECTOR
-__interrupt void PORT3_ISR(void)
-{
-  #pragma diag_push
-  /*
-   * (ULP 10.1) ISR Sim808_Ready calls function GPIO_disableInterrupt.
-   *
-   * Recommend moving function call away from ISR, or inlining the function, or using pragmas
-   */
-  //TODO: Confirm decision or address suppression diagnostic message
-  #pragma diag_suppress 1538
-	//(void)GPIO_disableInterrupt(GPIO_PORT_P3,GPIO_PIN5);
-  #pragma diag_pop
-}
-
-
-int
-platform_init (
-	void
-) {
+int platform_init (void) {
     int error;
     tickcounter_ms_t mark_ms, current_ms;
     TICK_COUNTER_HANDLE tick_counter;
@@ -83,7 +61,7 @@ platform_init (
              * NOTE: During the creation of a tickcounter, a millisecond
              *       snapshot is captured and used as an offset.
              */
-            for (error = current_ms = mark_ms = 0 ; (0 == error) && (550 >= current_ms) ; error = tickcounter_get_current_ms(tick_counter, &current_ms));
+            for (error = current_ms = 0 ; (0 == error) && (550 >= current_ms) ; error = tickcounter_get_current_ms(tick_counter, &current_ms));
             if (0 != error) {
                 error = __LINE__;
             } else {
@@ -117,10 +95,7 @@ platform_init (
 }
 
 
-void
-platform_deinit (
-	void
-) {
+void platform_deinit (void) {
     TICK_COUNTER_HANDLE tick_counter;
     tickcounter_ms_t current_ms;
 
@@ -182,10 +157,7 @@ platform_deinit (
 }
 
 
-const IO_INTERFACE_DESCRIPTION *
-platform_get_default_tlsio (
-	void
-) {
+const IO_INTERFACE_DESCRIPTION * platform_get_default_tlsio (void) {
 	return (const IO_INTERFACE_DESCRIPTION *)NULL;
 }
 

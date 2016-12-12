@@ -36,20 +36,10 @@
 static TEST_MUTEX_HANDLE g_testByTest;
 static TEST_MUTEX_HANDLE g_dllByDll;
 
-void
-showMe (
-    void
-) {
-    printf("\nExpected Calls: \n");
-    printf("%s\n", umock_c_get_expected_calls());
-    printf("\nActual Calls: \n");
-    printf("%s\n", umock_c_get_actual_calls());
-}
-
 #define ENABLE_MOCKS
   // `#include` SDK dependencies here
-  #include "azure_c_shared_utility\tlsio.h"
-  #include "azure_c_shared_utility\tickcounter_msp430.h"
+  #include "azure_c_shared_utility/tickcounter_msp430.h"
+  #include "azure_c_shared_utility/tlsio.h"
 #undef ENABLE_MOCKS
 
 #define MOCK_TICKCOUNTER (TICK_COUNTER_HANDLE)0x19790917
