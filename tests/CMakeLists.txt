@@ -3,6 +3,7 @@
 
 #this is CMakeLists.txt for the folder tests of C shared utility
 add_subdirectory(agenttime_ut)
+add_subdirectory(atrpc_ut)
 add_subdirectory(base64_ut)
 add_subdirectory(buffer_ut)
 if(${use_condition})
