@@ -22,9 +22,14 @@
 #include "azure_c_shared_utility/socketio.h"
 #include "windows.h"
 #include "sspi.h"
+#ifdef WINCE
+#include "schnlsp.h"
+#endif
 #include "schannel.h"
 #include "azure_c_shared_utility/xlogging.h"
+#ifndef WINCE
 #include "azure_c_shared_utility/x509_schannel.h"
+#endif
 #include "azure_c_shared_utility/crt_abstractions.h"
 
 typedef enum TLSIO_STATE_TAG
@@ -58,9 +63,11 @@ typedef struct TLS_IO_INSTANCE_TAG
     size_t received_byte_count;
     size_t buffer_size;
     size_t needed_bytes;
+#ifndef WINCE
     const char* x509certificate;
     const char* x509privatekey;
     X509_SCHANNEL_HANDLE x509_schannel_handle;
+#endif
 } TLS_IO_INSTANCE;
 
 /*this function will clone an option given by name and value*/
@@ -76,6 +83,7 @@ static void* tlsio_schannel_CloneOption(const char* name, const void* value)
     }
     else
     {
+#ifndef WINCE
         if (strcmp(name, "x509certificate") == 0)
         {
 			if (mallocAndStrcpy_s((char**)&result, (const char *) value) != 0)
@@ -100,7 +108,8 @@ static void* tlsio_schannel_CloneOption(const char* name, const void* value)
                 /*return as is*/
             }
         }
-        else
+		else
+#endif
         {
             LogError("not handled option : %s", name);
             result = NULL;
@@ -121,6 +130,7 @@ static void tlsio_schannel_DestroyOption(const char* name, const void* value)
     }
     else
     {
+#ifndef WINCE
         if (
             (strcmp(name, "x509certificate") == 0) ||
             (strcmp(name, "x509privatekey") == 0)
@@ -129,7 +139,8 @@ static void tlsio_schannel_DestroyOption(const char* name, const void* value)
             free((void*)value);
         }
         else
-        {
+#endif
+		{
             LogError("not handled option : %s", name);
         }
     }
@@ -155,6 +166,7 @@ static OPTIONHANDLER_HANDLE tlsio_schannel_retrieveoptions(CONCRETE_IO_HANDLE ha
         {
             /*this layer cares about the certificates and the x509 credentials*/
             TLS_IO_INSTANCE* tls_io_instance = (TLS_IO_INSTANCE*)handle;
+#ifndef WINCE
             if (
                 (tls_io_instance->x509certificate != NULL) &&
                 (OptionHandler_AddOption(result, "x509certificate", tls_io_instance->x509certificate) != 0)
@@ -174,7 +186,8 @@ static OPTIONHANDLER_HANDLE tlsio_schannel_retrieveoptions(CONCRETE_IO_HANDLE ha
                 result = NULL;
             }
             else
-            {
+#endif
+			{
                 /*all is fine, all interesting options have been saved*/
                 /*return as is*/
             }
@@ -279,7 +292,9 @@ static void on_underlying_io_open_complete(void* context, IO_OPEN_RESULT io_open
             SECURITY_STATUS status;
             SCHANNEL_CRED auth_data;
             PCCERT_CONTEXT certContext;
+			TimeStamp		Lifetime;
             auth_data.dwVersion = SCHANNEL_CRED_VERSION;
+#ifndef WINCE
             if(tls_io_instance->x509_schannel_handle!=NULL)
             {
                 certContext = x509_schannel_get_certificate_context(tls_io_instance->x509_schannel_handle);
@@ -287,7 +302,8 @@ static void on_underlying_io_open_complete(void* context, IO_OPEN_RESULT io_open
                 auth_data.paCred = &certContext;
             }
             else
-            {
+#endif
+			{
                 auth_data.cCreds = 0;
                 auth_data.paCred = NULL;
             }
@@ -299,10 +315,12 @@ static void on_underlying_io_open_complete(void* context, IO_OPEN_RESULT io_open
             auth_data.dwMaximumCipherStrength = 0;
             auth_data.dwSessionLifespan = 0;
             auth_data.dwFlags = SCH_USE_STRONG_CRYPTO | SCH_CRED_NO_DEFAULT_CREDS;
+#ifndef WINCE
             auth_data.dwCredFormat = 0;
+#endif
 
             status = AcquireCredentialsHandle(NULL, UNISP_NAME, SECPKG_CRED_OUTBOUND, NULL,
-                &auth_data, NULL, NULL, &tls_io_instance->credential_handle, NULL);
+                &auth_data, NULL, NULL, &tls_io_instance->credential_handle, &Lifetime);
             if (status != SEC_E_OK)
             {
                 tls_io_instance->tlsio_state = TLSIO_STATE_ERROR;
@@ -310,6 +328,7 @@ static void on_underlying_io_open_complete(void* context, IO_OPEN_RESULT io_open
             }
             else
             {
+                SecBufferDesc security_buffers_desc;
                 tls_io_instance->credential_handle_allocated = true;
 
                 init_security_buffers[0].cbBuffer = 0;
@@ -319,7 +338,6 @@ static void on_underlying_io_open_complete(void* context, IO_OPEN_RESULT io_open
                 init_security_buffers[1].BufferType = SECBUFFER_EMPTY;
                 init_security_buffers[1].pvBuffer = 0;
 
-                SecBufferDesc security_buffers_desc;
                 security_buffers_desc.cBuffers = 2;
                 security_buffers_desc.pBuffers = init_security_buffers;
                 security_buffers_desc.ulVersion = SECBUFFER_VERSION;
@@ -403,6 +421,10 @@ static void on_underlying_io_bytes_received(void* context, const unsigned char* 
                 SecBuffer input_buffers[2];
                 SecBuffer output_buffers[2];
                 ULONG context_attributes;
+                SecBufferDesc input_buffers_desc;
+                SecBufferDesc output_buffers_desc;
+				unsigned long flags;
+				SECURITY_STATUS status;
 
                 /* we need to try and perform the second (next) step of the init */
                 input_buffers[0].cbBuffer = (unsigned long)tls_io_instance->received_byte_count;
@@ -412,7 +434,6 @@ static void on_underlying_io_bytes_received(void* context, const unsigned char* 
                 input_buffers[1].BufferType = SECBUFFER_EMPTY;
                 input_buffers[1].pvBuffer = 0;
 
-                SecBufferDesc input_buffers_desc;
                 input_buffers_desc.cBuffers = 2;
                 input_buffers_desc.pBuffers = input_buffers;
                 input_buffers_desc.ulVersion = SECBUFFER_VERSION;
@@ -424,14 +445,13 @@ static void on_underlying_io_bytes_received(void* context, const unsigned char* 
                 output_buffers[1].BufferType = SECBUFFER_EMPTY;
                 output_buffers[1].pvBuffer = 0;
 
-                SecBufferDesc output_buffers_desc;
                 output_buffers_desc.cBuffers = 2;
                 output_buffers_desc.pBuffers = output_buffers;
                 output_buffers_desc.ulVersion = SECBUFFER_VERSION;
 
 				
-                unsigned long flags = ISC_REQ_EXTENDED_ERROR | ISC_REQ_STREAM | ISC_REQ_ALLOCATE_MEMORY | ISC_REQ_USE_SUPPLIED_CREDS;
-                SECURITY_STATUS status = InitializeSecurityContext(&tls_io_instance->credential_handle,
+                flags = ISC_REQ_EXTENDED_ERROR | ISC_REQ_STREAM | ISC_REQ_ALLOCATE_MEMORY | ISC_REQ_USE_SUPPLIED_CREDS;
+                status = InitializeSecurityContext(&tls_io_instance->credential_handle,
 					&tls_io_instance->security_context, tls_io_instance->host_name, flags, 0, 0, &input_buffers_desc, 0,
 					&tls_io_instance->security_context, &output_buffers_desc,
 					&context_attributes, NULL);
@@ -448,6 +468,10 @@ static void on_underlying_io_bytes_received(void* context, const unsigned char* 
                     else
                     {
                         tls_io_instance->needed_bytes = input_buffers[1].cbBuffer;
+						if (tls_io_instance->needed_bytes == 0)
+						{
+							tls_io_instance->needed_bytes = 1;
+						}
                     }
 
                     if (resize_receive_buffer(tls_io_instance, tls_io_instance->received_byte_count + tls_io_instance->needed_bytes) != 0)
@@ -560,6 +584,7 @@ static void on_underlying_io_bytes_received(void* context, const unsigned char* 
             {
                 SecBuffer security_buffers[4];
                 SecBufferDesc security_buffers_desc;
+				SECURITY_STATUS status;
 
                 security_buffers[0].BufferType = SECBUFFER_DATA;
                 security_buffers[0].pvBuffer = tls_io_instance->received_bytes;
@@ -572,7 +597,7 @@ static void on_underlying_io_bytes_received(void* context, const unsigned char* 
                 security_buffers_desc.pBuffers = security_buffers;
                 security_buffers_desc.ulVersion = SECBUFFER_VERSION;
 
-                SECURITY_STATUS status = DecryptMessage(&tls_io_instance->security_context, &security_buffers_desc, 0, NULL);
+                status = DecryptMessage(&tls_io_instance->security_context, &security_buffers_desc, 0, NULL);
                 switch (status)
                 {
                 case SEC_E_INCOMPLETE_MESSAGE:
@@ -600,6 +625,8 @@ static void on_underlying_io_bytes_received(void* context, const unsigned char* 
                     }
                     else
                     {
+						size_t i;
+
                         /* notify of the received data */
                         if (tls_io_instance->on_bytes_received != NULL)
                         {
@@ -608,7 +635,7 @@ static void on_underlying_io_bytes_received(void* context, const unsigned char* 
 
                         consumed_bytes = tls_io_instance->received_byte_count;
 
-                        for (size_t i = 0; i < sizeof(security_buffers) / sizeof(security_buffers[0]); i++)
+                        for (i = 0; i < sizeof(security_buffers) / sizeof(security_buffers[0]); i++)
                         {
                             /* Any extra bytes left over or did we fully consume the receive buffer? */
                             if (security_buffers[i].BufferType == SECBUFFER_EXTRA)
@@ -704,7 +731,7 @@ CONCRETE_IO_HANDLE tlsio_schannel_create(void* io_create_parameters)
     if (tls_io_config == NULL)
     {
         result = NULL;
-    }
+    }	
     else
     {
 		result = (TLS_IO_INSTANCE *) malloc(sizeof(TLS_IO_INSTANCE));
@@ -725,7 +752,9 @@ CONCRETE_IO_HANDLE tlsio_schannel_create(void* io_create_parameters)
             result->on_bytes_received_context = NULL;
             result->on_io_error_context = NULL;
             result->credential_handle_allocated = false;
+#ifndef WINCE
             result->x509_schannel_handle = NULL;
+#endif
 
 			result->host_name = (SEC_TCHAR*)malloc(sizeof(SEC_TCHAR) * (1 + strlen(tls_io_config->hostname)));
 			
@@ -736,13 +765,15 @@ CONCRETE_IO_HANDLE tlsio_schannel_create(void* io_create_parameters)
             }
             else
             {
+				const IO_INTERFACE_DESCRIPTION* socket_io_interface;
+
 				#ifdef WINCE
 				(void) mbstowcs(result->host_name, tls_io_config->hostname, strlen(tls_io_config->hostname));
 				#else
 				(void)strcpy(result->host_name, tls_io_config->hostname);
 				#endif
 				
-                const IO_INTERFACE_DESCRIPTION* socket_io_interface = socketio_get_interface_description();
+                socket_io_interface = socketio_get_interface_description();
                 if (socket_io_interface == NULL)
                 {
                     free(result->host_name);
@@ -764,9 +795,11 @@ CONCRETE_IO_HANDLE tlsio_schannel_create(void* io_create_parameters)
                         result->received_byte_count = 0;
                         result->buffer_size = 0;
                         result->tlsio_state = TLSIO_STATE_NOT_OPEN;
+#ifndef WINCE
                         result->x509certificate = NULL;
                         result->x509privatekey = NULL;
                         result->x509_schannel_handle = NULL;
+#endif
                     }
                 }
             }
@@ -792,10 +825,12 @@ void tlsio_schannel_destroy(CONCRETE_IO_HANDLE tls_io)
             free(tls_io_instance->received_bytes);
         }
 
+#ifndef WINCE
         if (tls_io_instance->x509_schannel_handle != NULL)
         {
             x509_schannel_destroy(tls_io_instance->x509_schannel_handle);
         }
+#endif
 
         xio_destroy(tls_io_instance->socket_io);
         free(tls_io_instance->host_name);
@@ -1020,6 +1055,7 @@ int tlsio_schannel_setoption(CONCRETE_IO_HANDLE tls_io, const char* optionName, 
     {
         TLS_IO_INSTANCE* tls_io_instance = (TLS_IO_INSTANCE*)tls_io;
         /*x509certificate and x509privatekey are "referenced" by this layer*/
+#ifndef WINCE
         if (strcmp("x509certificate", optionName) == 0)
         {
             if (tls_io_instance->x509certificate != NULL)
@@ -1080,7 +1116,9 @@ int tlsio_schannel_setoption(CONCRETE_IO_HANDLE tls_io, const char* optionName, 
                 }
             }
         }
-        else if (tls_io_instance->socket_io == NULL)
+        else
+#endif
+		if (tls_io_instance->socket_io == NULL)
         {
             result = __LINE__;
         }

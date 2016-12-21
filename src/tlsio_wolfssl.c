@@ -706,10 +706,12 @@ int tlsio_wolfssl_send(CONCRETE_IO_HANDLE tls_io, const void* buffer, size_t siz
         }
         else
         {
+			int res;
+
             tls_io_instance->on_send_complete = on_send_complete;
             tls_io_instance->on_send_complete_callback_context = callback_context;
 
-            int res = wolfSSL_write(tls_io_instance->ssl, buffer, size);
+            res = wolfSSL_write(tls_io_instance->ssl, buffer, size);
             if ((res < 0) || ((size_t)res != size)) // Best way I can think of to safely compare an int to a size_t
             {
                 result = __LINE__;

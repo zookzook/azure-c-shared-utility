@@ -8,10 +8,12 @@
 
 void consolelogger_log(LOG_CATEGORY log_category, const char* file, const char* func, const int line, unsigned int options, const char* format, ...)
 {
+	time_t t;
+
     va_list args;
     va_start(args, format);
 
-    time_t t = time(NULL); 
+    t = time(NULL);
     
     switch (log_category)
     {

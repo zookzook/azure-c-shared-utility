@@ -3,6 +3,7 @@
 
 #include "azure_c_shared_utility/xlogging.h"
 #include "azure_c_shared_utility/consolelogger.h"
+#include <time.h>
 
 #ifndef NO_LOGGING
 
@@ -12,10 +13,12 @@
 
 void consolelogger_log(LOG_CATEGORY log_category, const char* file, const char* func, const int line, unsigned int options, const char* format, ...)
 {
+	time_t t;
+
 	va_list args;
 	va_start(args, format);
 
-	time_t t = time(NULL);
+	t = time(NULL);
 
 	switch (log_category)
 	{
@@ -69,9 +72,10 @@ void xlogging_dump_buffer(const void* buf, size_t size)
     char countbuf = 0;
     const unsigned char* bufAsChar = (const unsigned char*)buf;
     const unsigned char* startPos = bufAsChar;
+	size_t i;
     
     /* Print the whole buffer. */
-    for (size_t i = 0; i < size; i++)
+    for (i = 0; i < size; i++)
     {
         /* Store the printable value of the char in the charBuf to print. */
         charBuf[countbuf] = PRINTABLE(*bufAsChar);

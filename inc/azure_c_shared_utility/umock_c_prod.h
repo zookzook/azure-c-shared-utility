@@ -16,7 +16,7 @@
 #define MOCKABLE_FUNCTION(modifiers, result, function, ...) \
     MOCKABLE_FUNCTION_UMOCK_INTERNAL_WITH_MOCK(modifiers, result, function, __VA_ARGS__)
 
-#include "umock_c.h"
+#include "azure_c_shared_utility/umock_c.h"
 
 #else
 

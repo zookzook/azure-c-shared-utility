@@ -26,6 +26,9 @@
 #define HUGE_VALF  ((float)INFINITY)
 #define HUGE_VALL  ((long double)INFINITY)
 #define NAN        ((float)(INFINITY * 0.0F))
+
+static int errno;
+
 #endif
 
 

@@ -118,11 +118,15 @@ STRING_HANDLE STRING_construct(const char* psz)
     return result;
 }
 
+#ifdef WINCE
+#define vsnprintf _vsnprintf
+#endif
+
 STRING_HANDLE STRING_construct_sprintf(const char* format, ...)
 {
     STRING* result;
     
-#ifdef ARDUINO_ARCH_ESP8266
+#if defined ARDUINO_ARCH_ESP8266 || defined WINCE
     size_t maxBufSize = 512;
     char buf[512];
 #else
