@@ -3,8 +3,12 @@
 
 #ifdef __cplusplus
   #include <cstdbool>
+  #include <cstdlib>
+  #include <ctime>
 #else
   #include <stdbool.h>
+  #include <stdlib.h>
+  #include <time.h>
 #endif
 
 #ifdef _CRTDBG_MAP_ALLOC
@@ -27,20 +31,229 @@
 static TEST_MUTEX_HANDLE g_testByTest;
 static TEST_MUTEX_HANDLE g_dllByDll;
 
+static
+void *
+non_mocked_malloc(
+    size_t size_
+) {
+    return malloc(size_);
+}
+
+static
+void
+non_mocked_free(
+    void * block_
+) {
+    free(block_);
+    return;
+}
+
 #define ENABLE_MOCKS
   // `#include` SDK dependencies here
+  #include "azure_c_shared_utility/gballoc.h"
   #include "azure_c_shared_utility/tickcounter_msp430.h"
   #include "azure_c_shared_utility/uartio.h"
+  #include "azure_c_shared_utility/vector.h"
 #undef ENABLE_MOCKS
 
+#define MOCK_IO_INTERFACE_DESCRIPTION_PTR (const IO_INTERFACE_DESCRIPTION *)0x09171979
 #define MOCK_TICKCOUNTER (TICK_COUNTER_HANDLE)0x19790917
 #define MOCK_UARTIO (XIO_HANDLE)0x17091979
+#define MOCK_VECTOR (VECTOR_HANDLE)0x19791709
 
 // Under test `#includes`
 #include "azure_c_shared_utility/atrpc.h"
 
+#ifdef __cplusplus
+  extern "C" {
+#endif
+
+static bool enable_xio_close_callback = true;
+static bool enable_xio_send_callback = false;
+static unsigned char mock_vector_buffer[2];
+static size_t mock_vector_size = sizeof(mock_vector_buffer);
+static const char * intercepted_open_response = NULL;
+static TA_RESULT_CODE intercepted_open_result_code;
+static const char * intercepted_ta_response = NULL;
+static TA_RESULT_CODE intercepted_ta_result_code;
+static ON_BYTES_RECEIVED intercepted_xio_on_bytes_received;
+static void * intercepted_xio_on_bytes_received_context;
+static ON_IO_CLOSE_COMPLETE intercepted_xio_on_io_close_complete;
+static void * intercepted_xio_on_io_close_context;
+static ON_IO_ERROR intercepted_xio_on_io_error;
+static void * intercepted_xio_on_io_error_context;
+static ON_IO_OPEN_COMPLETE intercepted_xio_on_io_open_complete;
+static void * intercepted_xio_on_io_open_context;
+static ON_SEND_COMPLETE intercepted_xio_on_send_complete;
+static void * intercepted_xio_on_send_context;
+static int random_work_count;
+
+static
+void
+mock_on_open_response(
+    void * context_,
+    TA_RESULT_CODE result_code_,
+    const char * response_
+) {
+    (void)context_;
+    intercepted_open_result_code = result_code_;
+    non_mocked_free((void *)intercepted_open_response);
+    if (NULL != response_) {
+        intercepted_open_response = (const char *)non_mocked_malloc(strlen(response_) + 1);
+        strcpy((char *)intercepted_open_response, response_);
+    } else {
+        intercepted_open_response = NULL;
+    }
+    return;
+}
+
+static
+void
+mock_on_ta_response(
+    void * context_,
+    TA_RESULT_CODE result_code_,
+    const char * response_
+) {
+    (void)context_;
+    intercepted_ta_result_code = result_code_;
+    non_mocked_free((void *)intercepted_ta_response);
+    if (NULL != response_) {
+        intercepted_ta_response = (const char *)non_mocked_malloc(strlen(response_) + 1);
+        strcpy((char *)intercepted_ta_response, response_);
+    }
+    else {
+        intercepted_ta_response = NULL;
+    }
+    return;
+}
+
+static
+TICK_COUNTER_HANDLE
+mock_tickcounter_create(
+    void
+) {
+    return MOCK_TICKCOUNTER;
+}
+
+static
+const IO_INTERFACE_DESCRIPTION *
+mock_uartio_get_interface_description (
+    void
+) {
+    return MOCK_IO_INTERFACE_DESCRIPTION_PTR;
+}
+
+static
+VECTOR_HANDLE
+mock_VECTOR_create(
+    size_t elementSize_
+) {
+    (void)elementSize_;
+    return MOCK_VECTOR;
+}
+
+static
+void *
+mock_VECTOR_front(
+    VECTOR_HANDLE handle_
+) {
+    (void)handle_;
+    return mock_vector_buffer;
+}
+
+static
+size_t
+mock_VECTOR_size(
+    VECTOR_HANDLE handle_
+) {
+    (void)handle_;
+    return mock_vector_size;
+}
+
+static
+int
+mock_xio_close(
+    XIO_HANDLE handle_,
+    ON_IO_CLOSE_COMPLETE on_io_close_complete_,
+    void * on_io_close_context_
+) {
+    (void)handle_;
+    intercepted_xio_on_io_close_complete = on_io_close_complete_;
+    intercepted_xio_on_io_close_context = on_io_close_context_;
+    return 0;
+}
+
+static
+XIO_HANDLE
+mock_xio_create(
+    const IO_INTERFACE_DESCRIPTION * io_interface_description_,
+    const void * io_parameters_
+) {
+    (void)io_interface_description_, io_parameters_;
+    return MOCK_UARTIO;
+}
+
+static
+void
+mock_xio_dowork(
+    XIO_HANDLE handle_
+) {
+    (void)handle_;
+    static int call_count = 1;
+    if (call_count >= random_work_count) {
+        if (enable_xio_close_callback) { intercepted_xio_on_io_close_complete(intercepted_xio_on_io_close_context); }
+        if (enable_xio_send_callback) { intercepted_xio_on_send_complete(intercepted_xio_on_send_context, IO_SEND_OK); }
+        call_count = 1;
+    } else {
+        ++call_count;
+    }
+    return;
+}
+
+static
+int
+mock_xio_open(
+    XIO_HANDLE handle_,
+    ON_IO_OPEN_COMPLETE on_io_open_complete_,
+    void * on_io_open_context_,
+    ON_BYTES_RECEIVED on_bytes_received_,
+    void * on_bytes_received_context_,
+    ON_IO_ERROR on_io_error_,
+    void * on_io_error_context_
+) {
+    (void)handle_;
+    intercepted_xio_on_bytes_received = on_bytes_received_;
+    intercepted_xio_on_bytes_received_context = on_bytes_received_context_;
+    intercepted_xio_on_io_error = on_io_error_;
+    intercepted_xio_on_io_error_context = on_io_error_context_;
+    intercepted_xio_on_io_open_complete = on_io_open_complete_;
+    intercepted_xio_on_io_open_context = on_io_open_context_;
+    return 0;
+}
+
+static
+int
+mock_xio_send(
+    XIO_HANDLE handle_,
+    const void * buffer_,
+    size_t size_,
+    ON_SEND_COMPLETE on_send_complete_,
+    void * on_send_context_
+) {
+    (void)handle_, buffer_, size_;
+    intercepted_xio_on_send_complete = on_send_complete_;
+    intercepted_xio_on_send_context = on_send_context_;
+    return 0;
+}
+
+#ifdef __cplusplus 
+  }
+#endif
+
 #define ENABLE_MOCKS
-  // define free mocked function(s) (platform, external libraries, etc.)
+  // define free mocked function(s) and enum type(s) (platform, external libraries, etc.)
+  TEST_DEFINE_ENUM_TYPE(IO_OPEN_RESULT, IO_OPEN_RESULT_VALUES);
+  IMPLEMENT_UMOCK_C_ENUM_TYPE(IO_OPEN_RESULT, IO_OPEN_RESULT_VALUES);
 #undef ENABLE_MOCKS
 
 DEFINE_ENUM_STRINGS(UMOCK_C_ERROR_CODE, UMOCK_C_ERROR_CODE_VALUES)
@@ -70,8 +283,29 @@ TEST_SUITE_INITIALIZE(suite_init)
     ASSERT_ARE_EQUAL(int, 0, result);
 
     REGISTER_UMOCK_ALIAS_TYPE(bool, char);
+    REGISTER_UMOCK_ALIAS_TYPE(ON_BYTES_RECEIVED, void *);
+    REGISTER_UMOCK_ALIAS_TYPE(ON_IO_CLOSE_COMPLETE, void *);
+    REGISTER_UMOCK_ALIAS_TYPE(ON_IO_ERROR, void *);
+    REGISTER_UMOCK_ALIAS_TYPE(ON_IO_OPEN_COMPLETE, void *);
+    REGISTER_UMOCK_ALIAS_TYPE(ON_SEND_COMPLETE, void *);
+    REGISTER_UMOCK_ALIAS_TYPE(TA_RESULT_CODE, int);
     REGISTER_UMOCK_ALIAS_TYPE(TICK_COUNTER_HANDLE, void *);
+    REGISTER_UMOCK_ALIAS_TYPE(VECTOR_HANDLE, void *);
+    REGISTER_UMOCK_ALIAS_TYPE(const VECTOR_HANDLE, const void *);
     REGISTER_UMOCK_ALIAS_TYPE(XIO_HANDLE, void *);
+
+    REGISTER_GLOBAL_MOCK_HOOK(gballoc_free, non_mocked_free);
+    REGISTER_GLOBAL_MOCK_HOOK(gballoc_malloc, non_mocked_malloc);
+    REGISTER_GLOBAL_MOCK_HOOK(tickcounter_create, mock_tickcounter_create);
+    REGISTER_GLOBAL_MOCK_HOOK(uartio_get_interface_description, mock_uartio_get_interface_description);
+    REGISTER_GLOBAL_MOCK_HOOK(VECTOR_create, mock_VECTOR_create);
+    REGISTER_GLOBAL_MOCK_HOOK(VECTOR_front, mock_VECTOR_front);
+    REGISTER_GLOBAL_MOCK_HOOK(VECTOR_size, mock_VECTOR_size);
+    REGISTER_GLOBAL_MOCK_HOOK(xio_close, mock_xio_close);
+    REGISTER_GLOBAL_MOCK_HOOK(xio_create, mock_xio_create);
+    REGISTER_GLOBAL_MOCK_HOOK(xio_dowork, mock_xio_dowork);
+    REGISTER_GLOBAL_MOCK_HOOK(xio_open, mock_xio_open);
+    REGISTER_GLOBAL_MOCK_HOOK(xio_send, mock_xio_send);
 }
 
 TEST_SUITE_CLEANUP(suite_cleanup)
@@ -88,6 +322,9 @@ TEST_FUNCTION_INITIALIZE(TestMethodInitialize)
     {
         ASSERT_FAIL("our mutex is ABANDONED. Failure in test framework");
     }
+    enable_xio_close_callback = true;
+    enable_xio_send_callback = false;
+    random_work_count = 1;
 }
 
 TEST_FUNCTION_CLEANUP(TestMethodCleanup)
@@ -95,87 +332,1913 @@ TEST_FUNCTION_CLEANUP(TestMethodCleanup)
     TEST_MUTEX_RELEASE(g_testByTest);
 }
 
+/* SRS_UARTIO_27_004: [ `atrpc_attention()` shall mark the call time, by calling `(int)tickcounter_get_current_ms(TICKCOUNTER_HANDLE handle, tickcounter_ms_t * current_ms)` using the handle returned from `atrpc_create()` as the `handle` parameter. ] */
+/* SRS_UARTIO_27_006: [ `atrpc_attention()` store the command string, by calling `(void *)malloc(size_t size)` using `(command_string_length + 3)` for the `size` parameter. ] */
+/* SRS_UARTIO_27_008: [ `atrpc_attention()` shall call `(int)xio_send(XIO_HANDLE handle, const void * buffer, size_t size, ON_IO_SEND_COMPLETE on_io_send_complete, void * on_io_send_context)` using the xio handle returned from `xio_create()` for the handle parameter, and `AT<command_string>\r` for the `buffer` parameter, and `(command_string_length + 3)` for the `size` parameter. ] */
+/* SRS_UARTIO_27_010: [ `atrpc_attention()` shall block until the `on_send_complete` callback passed to `xio_send()` returns. ] */
+/* SRS_UARTIO_27_011: [ If no errors are encountered during execution, then `atrpc_attention()` shall return 0. ] */
+TEST_FUNCTION(attention_SCENARIO_success)
+{
+    // Arrange
+    srand((unsigned int)time(NULL));
+    int error;
+    char at_command[] = "AT&W\r";
+    const char normalization_response_from_modem[] = "ATE1V0\r0\r\n";
+    const char ping_response_from_modem[] = "AT\r\r\nOK\r\n";
+    const char write_response_from_modem[] = "AT&W\r0\r\n";
+    ATRPC_HANDLE atrpc = atrpc_create();
+    ASSERT_IS_NOT_NULL(atrpc);
+    error = atrpc_open(atrpc, mock_on_open_response, atrpc);
+    ASSERT_ARE_EQUAL(int, 0, error);
+    enable_xio_close_callback = false;
+    enable_xio_send_callback = true;
+    intercepted_xio_on_io_open_complete(intercepted_xio_on_io_open_context, IO_OPEN_OK);  // call attention and store response callbacks
+    mock_vector_buffer[0] = '0';  // set the mocked ta result code
+    intercepted_xio_on_bytes_received(intercepted_xio_on_bytes_received_context, (const unsigned char *)ping_response_from_modem, (sizeof(ping_response_from_modem) - 1));  // Advance the handshake to prime the matching string with "ATE1V0\r"
+    mock_vector_buffer[0] = '0';  // set the mocked ta result code
+    intercepted_xio_on_bytes_received(intercepted_xio_on_bytes_received_context, (const unsigned char *)normalization_response_from_modem, (sizeof(normalization_response_from_modem) - 1));  // Advance the handshake to prime the matching string with "AT&W\r"
+    intercepted_open_result_code = ERROR_3GPP;
+    mock_vector_buffer[0] = '0';  // set the mocked ta result code
+    intercepted_xio_on_bytes_received(intercepted_xio_on_bytes_received_context, (const unsigned char *)write_response_from_modem, (sizeof(write_response_from_modem) - 1));
+    ASSERT_ARE_EQUAL(int, OK_3GPP, intercepted_open_result_code);
+    random_work_count = ((rand() % 4) + 1);
+    mock_vector_buffer[0] = '0';  // set the mocked ta result code
+
+    // Expected call listing
+    umock_c_reset_all_calls();
+    STRICT_EXPECTED_CALL(tickcounter_get_current_ms(MOCK_TICKCOUNTER, IGNORED_PTR_ARG))
+        .IgnoreArgument(2)
+        .SetReturn(0);
+    STRICT_EXPECTED_CALL(gballoc_malloc(2 + 3));
+    STRICT_EXPECTED_CALL(xio_send(MOCK_UARTIO, IGNORED_PTR_ARG, (2 + 3), IGNORED_PTR_ARG, IGNORED_PTR_ARG))
+        .IgnoreArgument(2)
+        .IgnoreArgument(4)
+        .IgnoreArgument(5)
+        .ValidateArgumentBuffer(2, at_command, (sizeof(at_command) - 1));
+    for (int i = 0; i < random_work_count; ++i) {
+        STRICT_EXPECTED_CALL(xio_dowork(MOCK_UARTIO));
+    }
+
+    // Act
+    error = atrpc_attention(atrpc, "&W", 2, 100, mock_on_ta_response, &atrpc);
+
+    // Assert
+    ASSERT_ARE_EQUAL(char_ptr, umock_c_get_expected_calls(), umock_c_get_actual_calls());
+    ASSERT_ARE_EQUAL(int, 0, error);
+
+    // Cleanup
+    enable_xio_close_callback = true;
+    enable_xio_send_callback = false;
+    random_work_count = 1;
+    error = atrpc_close(atrpc);
+    ASSERT_ARE_EQUAL(int, 0, error);
+    atrpc_destroy(atrpc);
+}
+
+/* SRS_UARTIO_27_005: [ If the call to `tickcounter_get_current_ms()` returns a non-zero value, then `atrpc_attention()` shall fail and return a non-zero value. ] */
+/* SRS_UARTIO_27_007: [ If the call to `malloc()` returns `NULL`, then `atrpc_attention()` shall fail and return a non-zero value. ] */
+/* SRS_UARTIO_27_009: [ If the call to `xio_send()` returns a non-zero value, then `atrpc_attention()` shall fail and return a non-zero value. ] */
+/* SRS_UARTIO_27_012: [ VALGRIND - If the call to `xio_send()` returns a non-zero value, then the stored command string shall be freed. ] */
+TEST_FUNCTION(attention_SCENARIO_negative_tests)
+{
+    // Arrange
+    int negativeTestsInitResult = umock_c_negative_tests_init();
+    uint64_t negativeTestsToSkip = 0;
+    size_t test_index = 0;
+    ASSERT_ARE_EQUAL(int, 0, negativeTestsInitResult);
+
+    srand((unsigned int)time(NULL));
+    int error;
+    char at_command[] = "AT&W\r";
+    ATRPC_HANDLE atrpc = atrpc_create();
+    ASSERT_IS_NOT_NULL(atrpc);
+    error = atrpc_open(atrpc, mock_on_open_response, atrpc);
+    ASSERT_ARE_EQUAL(int, 0, error);
+    enable_xio_close_callback = false;
+    enable_xio_send_callback = true;
+    random_work_count = ((rand() % 4) + 1);
+
+    // Expected call listing
+    umock_c_reset_all_calls();
+    enableNegativeTest(negativeTestsToSkip, test_index++);
+    STRICT_EXPECTED_CALL(tickcounter_get_current_ms(MOCK_TICKCOUNTER, IGNORED_PTR_ARG))
+        .IgnoreArgument(2)
+        .SetFailReturn(__LINE__)
+        .SetReturn(0);
+    enableNegativeTest(negativeTestsToSkip, test_index++);
+    STRICT_EXPECTED_CALL(gballoc_malloc(2 + 3))
+        .SetFailReturn(NULL);
+    enableNegativeTest(negativeTestsToSkip, test_index++);
+    STRICT_EXPECTED_CALL(xio_send(MOCK_UARTIO, IGNORED_PTR_ARG, (2 + 3), IGNORED_PTR_ARG, IGNORED_PTR_ARG))
+        .IgnoreArgument(2)
+        .IgnoreArgument(4)
+        .IgnoreArgument(5)
+        .SetFailReturn(__LINE__)
+        .ValidateArgumentBuffer(2, at_command, (sizeof(at_command) - 1));
+    for (int i = 0; i < random_work_count; ++i) {
+        disableNegativeTest(negativeTestsToSkip, test_index++);
+        STRICT_EXPECTED_CALL(xio_dowork(MOCK_UARTIO));
+    }
+    umock_c_negative_tests_snapshot();
+
+    for (size_t i = 0; i < umock_c_negative_tests_call_count(); ++i)
+    {
+        if (skipNegativeTest(negativeTestsToSkip, i)) { continue; }
+        umock_c_negative_tests_reset();
+        umock_c_negative_tests_fail_call(i);
+
+        // Act
+        error = atrpc_attention(atrpc, "&W", 2, 100, mock_on_ta_response, &atrpc);
+
+        // Assert
+        ASSERT_ARE_NOT_EQUAL(int, 0, error);
+    }
+
+    // Cleanup
+    enable_xio_close_callback = true;
+    enable_xio_send_callback = false;
+    random_work_count = 1;
+    error = atrpc_close(atrpc);
+    ASSERT_ARE_EQUAL(int, 0, error);
+    atrpc_destroy(atrpc);
+
+    umock_c_negative_tests_deinit();
+}
+
+/* SRS_UARTIO_27_000: [ If the `handle` argument is `NULL`, then `atrpc_attention()` shall fail and return a non-zero value. ] */
+TEST_FUNCTION(attention_SCENARIO_NULL_handle)
+{
+    // Arrange
+    int error;
+    ATRPC_HANDLE atrpc = atrpc_create();
+    ASSERT_IS_NOT_NULL(atrpc);
+    error = atrpc_open(atrpc, mock_on_open_response, atrpc);
+    ASSERT_ARE_EQUAL(int, 0, error);
+    enable_xio_close_callback = false;
+    enable_xio_send_callback = true;
+
+    // Expected call listing
+    umock_c_reset_all_calls();
+
+    // Act
+    error = atrpc_attention(NULL, "&W", 2, 100, mock_on_ta_response, &atrpc);
+
+    // Assert
+    ASSERT_ARE_EQUAL(char_ptr, umock_c_get_expected_calls(), umock_c_get_actual_calls());
+    ASSERT_ARE_NOT_EQUAL(int, 0, error);
+
+    // Cleanup
+    enable_xio_close_callback = true;
+    enable_xio_send_callback = false;
+    error = atrpc_close(atrpc);
+    ASSERT_ARE_EQUAL(int, 0, error);
+    atrpc_destroy(atrpc);
+}
+
+/* SRS_UARTIO_27_001: [ If the `on_ta_response` argument is `NULL`, then `atrpc_attention()` shall fail and return a non-zero value. ] */
+TEST_FUNCTION(attention_SCENARIO_NULL_on_ta_response)
+{
+    // Arrange
+    int error;
+    ATRPC_HANDLE atrpc = atrpc_create();
+    ASSERT_IS_NOT_NULL(atrpc);
+    error = atrpc_open(atrpc, mock_on_open_response, atrpc);
+    ASSERT_ARE_EQUAL(int, 0, error);
+    enable_xio_close_callback = false;
+    enable_xio_send_callback = true;
+
+    // Expected call listing
+    umock_c_reset_all_calls();
+
+    // Act
+    error = atrpc_attention(atrpc, "&W", 2, 100, NULL, &atrpc);
+
+    // Assert
+    ASSERT_ARE_EQUAL(char_ptr, umock_c_get_expected_calls(), umock_c_get_actual_calls());
+    ASSERT_ARE_NOT_EQUAL(int, 0, error);
+
+    // Cleanup
+    enable_xio_close_callback = true;
+    enable_xio_send_callback = false;
+    error = atrpc_close(atrpc);
+    ASSERT_ARE_EQUAL(int, 0, error);
+    atrpc_destroy(atrpc);
+}
+
+/* SRS_UARTIO_27_002: [ If the `on_io_open_complete()` callback from the underlying xio has not been called, then `atrpc_attention()` shall fail and return a non-zero value. ] */
+TEST_FUNCTION(attention_SCENARIO_handle_not_open)
+{
+    // Arrange
+    int error;
+    ATRPC_HANDLE atrpc = atrpc_create();
+    ASSERT_IS_NOT_NULL(atrpc);
+    enable_xio_close_callback = false;
+    enable_xio_send_callback = true;
+
+    // Expected call listing
+    umock_c_reset_all_calls();
+
+    // Act
+    error = atrpc_attention(atrpc, "&W", 2, 100, mock_on_ta_response, &atrpc);
+
+    // Assert
+    ASSERT_ARE_EQUAL(char_ptr, umock_c_get_expected_calls(), umock_c_get_actual_calls());
+    ASSERT_ARE_NOT_EQUAL(int, 0, error);
+
+    // Cleanup
+    enable_xio_send_callback = false;
+    atrpc_destroy(atrpc);
+}
+
+/* SRS_UARTIO_27_003: [ If a command is currently outstanding, then `atrpc_attention()` shall fail and return a non-zero value. ] */
+TEST_FUNCTION(attention_SCENARIO_request_outstanding)
+{
+    // Arrange
+    int error;
+    const char normalization_response_from_modem[] = "ATE1V0\r0\r\n";
+    const char ping_response_from_modem[] = "AT\r\r\nOK\r\n";
+    const char write_response_from_modem[] = "AT&W\r0\r\n";
+    ATRPC_HANDLE atrpc = atrpc_create();
+    ASSERT_IS_NOT_NULL(atrpc);
+    error = atrpc_open(atrpc, mock_on_open_response, atrpc);
+    ASSERT_ARE_EQUAL(int, 0, error);
+    enable_xio_close_callback = false;
+    enable_xio_send_callback = true;
+    intercepted_xio_on_io_open_complete(intercepted_xio_on_io_open_context, IO_OPEN_OK);  // call attention and store response callbacks
+    mock_vector_buffer[0] = '0';  // set the mocked ta result code
+    intercepted_xio_on_bytes_received(intercepted_xio_on_bytes_received_context, (const unsigned char *)ping_response_from_modem, (sizeof(ping_response_from_modem) - 1));  // Advance the handshake to prime the matching string with "ATE1V0\r"
+    mock_vector_buffer[0] = '0';  // set the mocked ta result code
+    intercepted_xio_on_bytes_received(intercepted_xio_on_bytes_received_context, (const unsigned char *)normalization_response_from_modem, (sizeof(normalization_response_from_modem) - 1));  // Advance the handshake to prime the matching string with "AT&W\r"
+    intercepted_open_result_code = ERROR_3GPP;
+    mock_vector_buffer[0] = '0';  // set the mocked ta result code
+    intercepted_xio_on_bytes_received(intercepted_xio_on_bytes_received_context, (const unsigned char *)write_response_from_modem, (sizeof(write_response_from_modem) - 1));
+    ASSERT_ARE_EQUAL(int, OK_3GPP, intercepted_open_result_code);
+    error = atrpc_attention(atrpc, "&W", 2, 0, mock_on_ta_response, &atrpc);
+    ASSERT_ARE_EQUAL(int, 0, error);
+    mock_vector_buffer[0] = '0';  // set the mocked ta result code
+
+    // Expected call listing
+    umock_c_reset_all_calls();
+
+    // Act
+    error = atrpc_attention(atrpc, "&W", 2, 0, mock_on_ta_response, &atrpc);
+
+    // Assert
+    ASSERT_ARE_EQUAL(char_ptr, umock_c_get_expected_calls(), umock_c_get_actual_calls());
+    ASSERT_ARE_NOT_EQUAL(int, 0, error);
+
+    // Cleanup
+    enable_xio_close_callback = true;
+    enable_xio_send_callback = false;
+    error = atrpc_close(atrpc);
+    ASSERT_ARE_EQUAL(int, 0, error);
+    atrpc_destroy(atrpc);
+}
+
+/* SRS_UARTIO_27_016: [ `atrpc_close()` shall call `(int)xio_close(XIO_HANDLE handle, ON_IO_CLOSE_COMPLETE on_io_close_complete, void * on_io_close_complete_context)`. ] */
+/* SRS_UARTIO_27_018: [ `atrpc_close()` shall block until the `on_io_close_complete` callback passed to `xio_close()` completes. ] */
+/* SRS_UARTIO_27_019: [ If no errors are encountered during execution, then `atrpc_close()` shall return 0. ] */
+TEST_FUNCTION(close_SCENARIO_success)
+{
+    // Arrange
+    srand((unsigned int)time(NULL));
+    int error;
+    ATRPC_HANDLE atrpc = atrpc_create();
+    ASSERT_IS_NOT_NULL(atrpc);
+    error = atrpc_open(atrpc, mock_on_open_response, atrpc);
+    ASSERT_ARE_EQUAL(int, 0, error);
+    enable_xio_close_callback = false;
+    enable_xio_send_callback = true;
+    intercepted_xio_on_io_open_complete(intercepted_xio_on_io_open_context, IO_OPEN_OK);
+    enable_xio_close_callback = true;
+    enable_xio_send_callback = false;
+    random_work_count = ((rand() % 4) + 1);
+
+    // Expected call listing
+    umock_c_reset_all_calls();
+    STRICT_EXPECTED_CALL(xio_close(MOCK_UARTIO, IGNORED_PTR_ARG, IGNORED_PTR_ARG))
+        .IgnoreArgument(2)
+        .IgnoreArgument(3);
+    for (int i = 0 ; i < random_work_count ; ++i) {
+        STRICT_EXPECTED_CALL(xio_dowork(MOCK_UARTIO));
+    }
+
+    // Act
+    error = atrpc_close(atrpc);
+
+    // Assert
+    ASSERT_ARE_EQUAL(char_ptr, umock_c_get_expected_calls(), umock_c_get_actual_calls());
+    ASSERT_ARE_EQUAL(int, 0, error);
+
+    // Cleanup
+    atrpc_destroy(atrpc);
+}
+
+/* SRS_UARTIO_27_017: [ If the call to `xio_close()` returns a non-zero value, then `atrpc_close()` shall fail and return a non-zero value. ] */
+TEST_FUNCTION(close_SCENARIO_negative_tests)
+{
+    // Arrange
+    int negativeTestsInitResult = umock_c_negative_tests_init();
+    uint64_t negativeTestsToSkip = 0;
+    ASSERT_ARE_EQUAL(int, 0, negativeTestsInitResult);
+
+    int error;
+    ATRPC_HANDLE atrpc = atrpc_create();
+    ASSERT_IS_NOT_NULL(atrpc);
+    error = atrpc_open(atrpc, mock_on_open_response, atrpc);
+    ASSERT_ARE_EQUAL(int, 0, error);
+    enable_xio_close_callback = false;
+    enable_xio_send_callback = true;
+    intercepted_xio_on_io_open_complete(intercepted_xio_on_io_open_context, IO_OPEN_OK);
+    enable_xio_close_callback = true;
+    enable_xio_send_callback = false;
+
+    // Expected call listing
+    umock_c_reset_all_calls();
+    STRICT_EXPECTED_CALL(xio_close(MOCK_UARTIO, IGNORED_PTR_ARG, IGNORED_PTR_ARG))
+        .IgnoreArgument(2)
+        .IgnoreArgument(3)
+        .SetFailReturn(__LINE__)
+        .SetReturn(0);
+    umock_c_negative_tests_snapshot();
+
+    for (size_t i = 0; i < umock_c_negative_tests_call_count(); ++i)
+    {
+        if (skipNegativeTest(negativeTestsToSkip, i)) { continue; }
+        umock_c_negative_tests_reset();
+        umock_c_negative_tests_fail_call(i);
+
+        // Act
+        error = atrpc_close(atrpc);
+
+        // Assert
+        ASSERT_ARE_NOT_EQUAL(int, 0, error);
+    }
+
+    // Cleanup
+    atrpc_destroy(atrpc);
+
+    umock_c_negative_tests_deinit();
+}
+
+/* SRS_UARTIO_27_013: [ If the `handle` argument is `NULL`, then `atrpc_close()` shall fail and return a non-zero value. ] */
+TEST_FUNCTION(close_SCENARIO_NULL_handle)
+{
+    // Arrange
+    int error;
+    ATRPC_HANDLE atrpc = atrpc_create();
+    ASSERT_IS_NOT_NULL(atrpc);
+    error = atrpc_open(atrpc, mock_on_open_response, atrpc);
+    ASSERT_ARE_EQUAL(int, 0, error);
+    enable_xio_close_callback = false;
+    enable_xio_send_callback = true;
+    intercepted_xio_on_io_open_complete(intercepted_xio_on_io_open_context, IO_OPEN_OK);
+    enable_xio_close_callback = true;
+    enable_xio_send_callback = false;
+
+    // Expected call listing
+    umock_c_reset_all_calls();
+
+    // Act
+    error = atrpc_close(NULL);
+
+    // Assert
+    ASSERT_ARE_EQUAL(char_ptr, umock_c_get_expected_calls(), umock_c_get_actual_calls());
+    ASSERT_ARE_NOT_EQUAL(int, 0, error);
+
+    // Cleanup
+    error = atrpc_close(atrpc);
+    ASSERT_ARE_EQUAL(int, 0, error);
+    atrpc_destroy(atrpc);
+}
+
+/* SRS_UARTIO_27_014: [ If `atrpc_open()` has not been called on the `handle`, `atrpc_close()` shall do nothing and return 0. ] */
+TEST_FUNCTION(close_SCENARIO_already_closed)
+{
+    // Arrange
+    int error;
+    ATRPC_HANDLE atrpc = atrpc_create();
+    ASSERT_IS_NOT_NULL(atrpc);
+
+    // Expected call listing
+    umock_c_reset_all_calls();
+
+    // Act
+    error = atrpc_close(atrpc);
+
+    // Assert
+    ASSERT_ARE_EQUAL(char_ptr, umock_c_get_expected_calls(), umock_c_get_actual_calls());
+    ASSERT_ARE_EQUAL(int, 0, error);
+
+    // Cleanup
+    atrpc_destroy(atrpc);
+}
+
+/* SRS_UARTIO_27_015: [ If `atrpc_open()` has been called on the `handle` and the `on_open_complete` callback has not been called, `atrpc_close()` shall call the `(void)on_open_complete(void * context, ta_result_code result_code, char * response)` callback provided to `atrpc_open()`, using the `on_open_complete_context` argument provided to `atrpc_open()` as the `context` parameter, `ERROR_ATRPC` as the `result_code` parameter, and `NULL` as the `response` parameter. ] */
+TEST_FUNCTION(close_SCENARIO_cancel_open)
+{
+    // Arrange
+    srand((unsigned int)time(NULL));
+    int error;
+    ATRPC_HANDLE atrpc = atrpc_create();
+    ASSERT_IS_NOT_NULL(atrpc);
+    error = atrpc_open(atrpc, mock_on_open_response, atrpc);
+    ASSERT_ARE_EQUAL(int, 0, error);
+    intercepted_open_result_code = OK_3GPP;
+    random_work_count = ((rand() % 4) + 1);
+
+    // Expected call listing
+    umock_c_reset_all_calls();
+    STRICT_EXPECTED_CALL(xio_close(MOCK_UARTIO, IGNORED_PTR_ARG, IGNORED_PTR_ARG))
+        .IgnoreArgument(2)
+        .IgnoreArgument(3);
+    for (int i = 0; i < random_work_count; ++i) {
+        STRICT_EXPECTED_CALL(xio_dowork(MOCK_UARTIO));
+    }
+
+    // Act
+    error = atrpc_close(atrpc);
+
+    // Assert
+    ASSERT_ARE_EQUAL(char_ptr, umock_c_get_expected_calls(), umock_c_get_actual_calls());
+    ASSERT_ARE_EQUAL(int, 0, error);
+    ASSERT_ARE_EQUAL(int, ERROR_ATRPC, intercepted_open_result_code);
+    ASSERT_IS_NULL(intercepted_open_response);
+
+    // Cleanup
+    atrpc_destroy(atrpc);
+}
+
+/* SRS_UARTIO_27_020: [ `atrpc_create()` shall call `malloc()` to allocate the memory required for the internal data structure. ] */
+/* SRS_UARTIO_27_022: [ `atrpc_create()` shall create a tickcounter to support timeout functionality by calling `(TICKCOUNTER_HANDLE)tickcounter_create(void)`. ] */
+/* SRS_UARTIO_27_024: [ `atrpc_create()` shall acquire an xio interface to a modem chipset by calling `(IO_INTERFACE_DESCRIPTION *)uartio_get_interface_description()`. ] */
+/* SRS_UARTIO_27_026: [ `atrpc_create()` shall create an xio connection to a modem chipset by calling `(XIO_HANDLE)xio_create(const IO_INTERFACE_DESCRIPTION * io_interface_description, const void * io_create_parameters)` using the interface description returned from `uartio_get_interface_description()` for `io_interface_description`. ] */
+/* SRS_UARTIO_27_028: [ `atrpc_create()` shall create a vector to buffer responses from the terminal adapter. ] */
+/* SRS_UARTIO_27_031: [ If no errors are encountered during execution, `atrpc_create()` shall return a handle to an AT RPC instance. ] */
 TEST_FUNCTION(create_SCENARIO_success)
 {
     // Arrange
+    ATRPC_HANDLE atrpc = NULL;
 
     // Expected call listing
+    umock_c_reset_all_calls();
+    EXPECTED_CALL(gballoc_malloc(IGNORED_NUM_ARG));
+    STRICT_EXPECTED_CALL(tickcounter_create())
+        .SetReturn(MOCK_TICKCOUNTER);
+    STRICT_EXPECTED_CALL(uartio_get_interface_description())
+        .SetReturn(MOCK_IO_INTERFACE_DESCRIPTION_PTR);
+    STRICT_EXPECTED_CALL(xio_create(MOCK_IO_INTERFACE_DESCRIPTION_PTR, IGNORED_PTR_ARG))
+        .IgnoreArgument(2)
+        .SetReturn(MOCK_UARTIO);
+    STRICT_EXPECTED_CALL(VECTOR_create(sizeof(unsigned char)))
+        .SetReturn(MOCK_VECTOR);
 
     // Act
+    atrpc = atrpc_create();
 
     // Assert
-    ASSERT_IS_TRUE(false);
+    ASSERT_ARE_EQUAL(char_ptr, umock_c_get_expected_calls(), umock_c_get_actual_calls());
+    ASSERT_IS_NOT_NULL(atrpc);
+
+    // Cleanup
+    atrpc_destroy(atrpc);
+}
+
+/* SRS_UARTIO_27_021: [ If `malloc()` fails to allocate the memory required for the internal data structure, then `atrpc_create()` shall fail and return a `NULL` handle. ] */
+/* SRS_UARTIO_27_023: [ If the call to `tickcounter_create()` returns `NULL`, then `atrpc_create()` shall fail and return `NULL`. ] */
+/* SRS_UARTIO_27_025: [ If the call to `uartio_get_interface_description()` returns `NULL`, then `atrpc_create()` shall fail and return `NULL`. ] */
+/* SRS_UARTIO_27_027: [ If the call to `xio_create()` returns `NULL`, then `atrpc_create()` shall fail and return `NULL`. ] */
+/* SRS_UARTIO_27_029: [ If the call to `VECTOR_create()` returns `NULL`, then `atrpc_create()` shall fail and return `NULL`. ] */
+/* SRS_UARTIO_27_030: [ VALGRIND - When `atrpc_create()` returns a non-zero value, all allocated resources up to that point shall be freed. ] */
+TEST_FUNCTION(create_SCENARIO_negative_tests)
+{
+    // Arrange
+    int negativeTestsInitResult = umock_c_negative_tests_init();
+    uint64_t negativeTestsToSkip = 0;
+    ASSERT_ARE_EQUAL(int, 0, negativeTestsInitResult);
+
+    ATRPC_HANDLE atrpc = NULL;
+
+    // Expected call listing
+    umock_c_reset_all_calls();
+    EXPECTED_CALL(gballoc_malloc(IGNORED_NUM_ARG))
+        .SetFailReturn(NULL);
+    STRICT_EXPECTED_CALL(tickcounter_create())
+        .SetReturn(MOCK_TICKCOUNTER)
+        .SetFailReturn(NULL);
+    STRICT_EXPECTED_CALL(uartio_get_interface_description())
+        .SetReturn(MOCK_IO_INTERFACE_DESCRIPTION_PTR)
+        .SetFailReturn(NULL);
+    STRICT_EXPECTED_CALL(xio_create(MOCK_IO_INTERFACE_DESCRIPTION_PTR, IGNORED_PTR_ARG))
+        .IgnoreArgument(2)
+        .SetFailReturn(NULL)
+        .SetReturn(MOCK_UARTIO);
+    STRICT_EXPECTED_CALL(VECTOR_create(sizeof(unsigned char)))
+        .SetFailReturn(0)
+        .SetReturn(MOCK_VECTOR);
+    umock_c_negative_tests_snapshot();
+
+    for (size_t i = 0; i < umock_c_negative_tests_call_count(); ++i)
+    {
+        if (skipNegativeTest(negativeTestsToSkip, i)) { continue; }
+        umock_c_negative_tests_reset();
+        umock_c_negative_tests_fail_call(i);
+
+        // Act
+        atrpc = atrpc_create();
+
+        // Assert
+        ASSERT_IS_NULL(atrpc);
+    }
+
+    // Cleanup
+    umock_c_negative_tests_deinit();
+}
+
+/* SRS_UARTIO_27_034: [ `atrpc_destroy()` shall call `(void)xio_destroy(XIO_HANDLE handle)` using the handle returned from the call to `xio_create()` for the `handle` parameter. ] */
+/* SRS_UARTIO_27_035: [ `atrpc_destroy()` shall call `(void)VECTOR_destroy(VECTOR_HANDLE handle)` using the handle returned from the call to `VECTOR_create()` for the `handle` parameter. ] */
+/* SRS_UARTIO_27_036: [ `atrpc_destroy()` shall call `(void)tickcounter_destroy(TICKCOUNTER_HANDLE handle)` using the handle returned from the call to `tickcounter_create()` for the `handle` parameter. ] */
+/* SRS_UARTIO_27_037: [ `atrpc_destroy()` shall free the memory required for current request. ] */
+/* SRS_UARTIO_27_038: [ `atrpc_destroy()` shall free the memory required for the internal data structure. ] */
+TEST_FUNCTION(destroy_SCENARIO_success)
+{
+    // Arrange
+    ATRPC_HANDLE atrpc = atrpc_create();
+    ASSERT_IS_NOT_NULL(atrpc);
+
+    // Expected call listing
+    umock_c_reset_all_calls();
+    STRICT_EXPECTED_CALL(xio_destroy(MOCK_UARTIO));
+    STRICT_EXPECTED_CALL(VECTOR_destroy(MOCK_VECTOR));
+    STRICT_EXPECTED_CALL(tickcounter_destroy(MOCK_TICKCOUNTER));
+    EXPECTED_CALL(gballoc_free(IGNORED_PTR_ARG));
+    STRICT_EXPECTED_CALL(gballoc_free(atrpc));
+
+    // Act
+    atrpc_destroy(atrpc);
+
+    // Assert
+    ASSERT_ARE_EQUAL(char_ptr, umock_c_get_expected_calls(), umock_c_get_actual_calls());
 
     // Cleanup
 }
 
-/* SRS_UARTIO_27_000: [ If the `handle` argument is `NULL`, then `atrpc_attention()` shall fail and return a non - zero value. ] */  
-/* SRS_UARTIO_27_001: [ If the `ta_response` argument is `NULL`, then `atrpc_attention()` shall fail and return a non - zero value. ] */  
-/* SRS_UARTIO_27_002: [ If `atrpc_open()` has not been called on the `handle`, `atrpc_attention()` shall fail and return a non - zero value. ] */  
-/* SRS_UARTIO_27_003: [ If a command is currently outstanding, then `atrpc_attention()` shall fail and return a non - zero value. ] */  
-/* SRS_UARTIO_27_004: [ `atrpc_attention()` shall mark the call time, by calling `(int)tickcounter_get_current_ms(TICKCOUNTER_HANDLE handle, tickcounter_ms_t * current_ms)` using the handle returned from `atrpc_create()` as the `handle` parameter. ] */  
-/* SRS_UARTIO_27_005: [ If the call to `tickcounter_get_current_ms()` returns a non - zero value, then `atrpc_attention()` shall fail and return a non - zero value. ] */  
-/* SRS_UARTIO_27_006: [ `atrpc_attention()` store the command string, by calling `(void *)malloc(size_t size)` using `(command_string_length + 3)` for the `size` parameter. ] */  
-/* SRS_UARTIO_27_007: [ If the call to `malloc()` returns `NULL`, then `atrpc_attention()` shall fail and return a non - zero value. ] */  
-/* SRS_UARTIO_27_008: [ `atrpc_attention()` shall call `(int)xio_send(XIO_HANDLE handle, const void * buffer, size_t)` using the xio handle returned from `xio_create()` in `atrpc_create()` for the handle parameter, and `AT<command_string>\r` for the `buffer` parameter . ] */  
-/* SRS_UARTIO_27_009: [ If the call to `xio_send()` returns a non - zero value, then `atrpc_attention()` shall fail and return a non - zero value. ] */  
-/* SRS_UARTIO_27_010: [ `atrpc_attention()` shall block until the `on_send_complete` callback passed to `xio_send()` returns. ] */  
-/* SRS_UARTIO_27_011: [ If no errors are encountered during execution, then `atrpc_attention()` shall return 0. ] */  
+/* SRS_UARTIO_27_032: [ If the `handle` argument is `NULL`, then `atrpc_destroy()` shall do nothing. ] */
+TEST_FUNCTION(destroy_SCENARIO_NULL_handle)
+{
+    // Arrange
 
-/* SRS_UARTIO_27_012: [ If the `handle` argument is `NULL`, then `atrpc_close()` shall fail and return a non - zero value. ] */  
-/* SRS_UARTIO_27_013: [ If the `handle` has a status of `ATRPC_CLOSED`, `atrpc_close()` shall do nothing and return 0. ] */  
-/* SRS_UARTIO_27_014: [ If `atrpc_open()` has been called on the `handle` and the `on_open_complete` callback has not been called, `atrpc_close()` shall call the `(void)on_open_complete(void * context, ta_result_code result_code, char * response)` callback provided to `atrpc_open()`, using the `on_open_complete_context` argument provided to `atrpc_open()` as the `context` parameter, `ATRPC_TIMEOUT` as the `result_code` parameter, and `NULL` as the `response` parameter. ] */  
-/* SRS_UARTIO_27_015: [ `atrpc_close()` shall call `(int)xio_close(XIO_HANDLE handle, ON_IO_CLOSE_COMPLETE on_io_close_complete, void * on_io_close_complete_context)` . ] */  
-/* SRS_UARTIO_27_016: [ If the call to `xio_close()` returns a non - zero value, then `atrpc_close()` shall fail and return a non - zero value. ] */  
-/* SRS_UARTIO_27_017: [ `atrpc_close()` shall block until the `on_io_close_complete` callback passed to `xio_close()` returns. ] */  
-/* SRS_UARTIO_27_018: [ If no errors are encountered during execution, then`atrpc_close()` shall return 0. ] */  
+    // Expected call listing
+    umock_c_reset_all_calls();
 
-/* SRS_UARTIO_27_019: [ `atrpc_create()` shall create a tickcounter to support timeout functionality by calling `(TICKCOUNTER_HANDLE)tickcounter_create(void)`. ] */  
-/* SRS_UARTIO_27_020: [ If the call to `tickcounter_create()` returns `NULL`, then `atrpc_create()` shall fail and return `NULL`. ] */  
-/* SRS_UARTIO_27_021: [ `atrpc_create()` shall create an xio connection to a modem chipset by calling `(XIO_HANDLE)xio_create(void *io_create_parameters)` using a `UARTIO_CONFIG` initialized with a `baud_rate` of `9600` and a `ring_buffer_size` of `8`. ] */  
-/* SRS_UARTIO_27_022: [ If the call to `xio_create()` returns `NULL`, then `atrpc_create()` shall fail and return `NULL`. ] */  
-/* SRS_UARTIO_27_023: [ If no errors are encountered during execution, `atrpc_create()` shall return a handle to an AT RPC instance. ] */  
+    // Act
+    atrpc_destroy(NULL);
 
-/* SRS_UARTIO_27_024: [ If the `handle` argument is `NULL`, then `atrpc_destroy()` shall do nothing. ] */  
-/* SRS_UARTIO_27_025: [ If `atrpc_close()` has not been called on the `handle`, `atrpc_destroy()` shall call `(int)atrpc_close(ATRPC_HANDLE handle)` using the handle `argument` passed to `atrpc_destroy()` as the `handle` parameter. ] */  
-/* SRS_UARTIO_27_026: [ `atrpc_destroy()` shall call `(void)tickcounter_destroy(TICKCOUNTER_HANDLE handle)` using the handle returned from the call to `tickcounter_create()` for the `handle` parameter. ] */  
-/* SRS_UARTIO_27_027: [ `atrpc_destroy()` shall call `(void)xio_destroy(XIO_HANDLE handle)` using the handle returned from the call to `xio_create()` for the `handle` parameter. ] */  
+    // Assert
+    ASSERT_ARE_EQUAL(char_ptr, umock_c_get_expected_calls(), umock_c_get_actual_calls());
 
-/* SRS_UARTIO_27_028: [ If the `handle` argument is `NULL`, then `atrpc_dowork()` shall do nothing. ] */  
-/* SRS_UARTIO_27_029: [ `atrpc_dowork()` shall call `(void)xio_dowork(XIO_HANDLE handle)` using the handle returned from the call to `xio_create()` for the `handle` parameter. ] */  
-/* SRS_UARTIO_27_030: [ If `atrpc_open()` has been called on the `handle`, `atrpc_dowork()` shall mark the call time, by calling `(int)tickcounter_get_current_ms(TICKCOUNTER_HANDLE handle, tickcounter_ms_t * current_ms)` using the handle returned from `atrpc_create()` as the `handle` parameter. ] */  
-/* SRS_UARTIO_27_031: [  If `atrpc_open()` has been called on the `handle`, and the timeout value sent as `timeout_ms` to the originating `attention()` call is non - zero and has expired, `atrpc_dowork()` shall call the terminal adapter response callback passed as `ta_response` to `attention()` using the `ta_response_context` parameter passed to `attention()` as the `context` parameter, `ATRPC_TIMEOUT` as the `result_code` parameter, and `NULL` as the `message` parameter. ] */  
+    // Cleanup
+}
 
-/* SRS_UARTIO_27_032: [ If the `handle` argument is `NULL`, then `atrpc_open()` shall fail and return a non - zero value. ] */  
-/* SRS_UARTIO_27_033: [ If `atrpc_close()` has not been called on the `handle`, `atrpc_open()` shall fail and return a non - zero value. ] */  
-/* SRS_UARTIO_27_034: [ If the `on_open_complete` argument is `NULL`, then `atrpc_open()` shall fail and return a non - zero value. ] */  
-/* SRS_UARTIO_27_035: [ `atrpc_open()` shall call `(int)xio_open(XIO_HANDLE handle, ON_IO_OPEN_COMPLETE on_io_open_complete, void * on_io_open_complete_context, ON_BYTES_RECEIVED on_bytes_received, void * on_bytes_received_context, ON_IO_ERROR on_io_error, void * on_io_error_context)` using the handle returned from `xio_create()` as the `handle` parameter, the incoming `handle` parameter as the `on_bytes_received_context` parameter, and the incoming `handle` parameter as the `on_io_open_complete_context` parameter. ] */  
+/* SRS_UARTIO_27_033: [ If `atrpc_open()` has previously been called and `atrpc_close()` has not been called on the `handle`, `atrpc_destroy()` shall call `(int)atrpc_close(ATRPC_HANDLE handle)` using the handle `argument` passed to `atrpc_destroy()` as the `handle` parameter. ] */
+TEST_FUNCTION(destroy_SCENARIO_close_not_called_before_destroy)
+{
+    // Arrange
+    int error;
+    ATRPC_HANDLE atrpc = atrpc_create();
+    ASSERT_IS_NOT_NULL(atrpc);
+    error = atrpc_open(atrpc, mock_on_open_response, atrpc);
 
-/* SRS_UARTIO_27_036: [ If `atrpc_open()` has not been called on the `handle` (passed in the callback context), then `on_bytes_received()` shall discard all bytes. ] */  
-/* SRS_UARTIO_27_037: [ If the `on_open_complete()` callback(passed to the `atrpc_open()` of the `handle` (passed in the callback context)) has been called, then `on_bytes_received()` shall discard any bytes not prefixed with the `command_string` parameter passed to `attention()`. ] */  
-/* SRS_UARTIO_27_038: [ If the `on_open_complete()` callback(passed to the `atrpc_open()` of the `handle` (passed in the callback context)) has been called, then `on_bytes_received()` shall capture any bytes prefixed with the `command_string` parameter passed to `attention()` and postfixed with a `<result code>"\r"` and call the `ta_response` callback passed to `attention()` using the `ta_response_context` as the `context` parameter, the parsed result code as the `result_code` parameter, and the captured bytes as the `message` parameter. ] */  
-/* SRS_UARTIO_27_039: [ If the status of the handle(passed in the callback context) is `ATRPC_OPENING`, then `on_bytes_received()` shall capture any bytes postfixed with a `<result code>"\r"` and call the `ta_response` callback passed to `attention()` using the `ta_response_context` as the `context` parameter, the parsed result code as the `result_code` parameter, and the captured bytes as the `message` parameter. ] */  
-/* SRS_UARTIO_27_040: [ If the status of the handle(passed in the callback context) is `ATRPC_OPENING`, then `on_bytes_received()` shall capture any bytes postfixed with a `"\r\n"<result word>"\r\n"` and call the `ta_response` callback passed to `attention()` using the `ta_response_context` as the `context` parameter, the parsed result code as the `result_code` parameter, and the captured bytes as the `message` parameter. ] */  
-/* SRS_UARTIO_27_041: [ If the `ta_response` callback was called, then `on_bytes_received()` shall free the stored command string. ] */  
+    // Expected call listing
+    umock_c_reset_all_calls();
+    STRICT_EXPECTED_CALL(xio_close(MOCK_UARTIO, IGNORED_PTR_ARG, IGNORED_PTR_ARG))
+        .IgnoreArgument(2)
+        .IgnoreArgument(3);
+    STRICT_EXPECTED_CALL(xio_dowork(MOCK_UARTIO));
+    STRICT_EXPECTED_CALL(xio_destroy(MOCK_UARTIO));
+    STRICT_EXPECTED_CALL(VECTOR_destroy(MOCK_VECTOR));
+    STRICT_EXPECTED_CALL(tickcounter_destroy(MOCK_TICKCOUNTER));
+    EXPECTED_CALL(gballoc_free(IGNORED_PTR_ARG));
+    STRICT_EXPECTED_CALL(gballoc_free(atrpc));
 
-/* SRS_UARTIO_27_042: [ `on_io_close_complete()` shall do nothing. ] */  
+    // Act
+    atrpc_destroy(atrpc);
 
-/* SRS_UARTIO_27_043: [ `on_io_error()` shall call the terminal adapter response callback passed as `ta_response` to `attention()` using the `ta_response_context` parameter passed to `attention()` as the `context` parameter, `ERROR` as the `result_code` parameter, and "Underlying xio error!" as the `message` parameter. ] */  
-/* SRS_UARTIO_27_044: [ `on_io_error()` shall free the stored command string. ] */   
+    // Assert
+    ASSERT_ARE_EQUAL(char_ptr, umock_c_get_expected_calls(), umock_c_get_actual_calls());
 
-/* SRS_UARTIO_27_045: [ If the `open_result` parameter is not `OPEN_OK`, then `on_io_open_complete()` shall call the `on_open_complete` callback passed to `atrpc_open()` using the `on_open_complete_context` parameter passed to `atrpc_open()` as the `context` parameter, `ERROR` as the `result_code` parameter, and "Underlying xio failed to open!" as the `message` parameter. ] */  
-/* SRS_UARTIO_27_046: [ If the `open_result` parameter is `OPEN_OK`, then `on_io_open_complete()` shall initiate the handshaking process by calling `(void)atrpc_handshake(void * context, const char * const command_string, const size_t command_string_length const size_t timeout_ms, TA_RESPONSE const ta_response, const void * const ta_response_context)` using the incoming `context` parameter as the `handle` parameter, `NULL` as the `command_string` parameter, `0` as the `command_string_length` parameter, `100` as the `timeout_ms` parameter, `atrpc_handshake` as the `ta_response` parameter, and `ta_response_context` as the `context` parameter. ] */  
+    // Cleanup
+}
 
-/* SRS_UARTIO_27_047: [ `on_send_complete()` shall do nothing. ] */  
+/* SRS_UARTIO_27_041: [ If `atrpc_open()` has been called on the `handle`, `atrpc_dowork()` shall mark the call time, by calling `(int)tickcounter_get_current_ms(TICKCOUNTER_HANDLE handle, tickcounter_ms_t * current_ms)` using the handle returned from `atrpc_create()` as the `handle` parameter. ] */
+/* SRS_UARTIO_27_044: [ If `atrpc_open()` has been called on the `handle`, and the timeout value sent as `timeout_ms` to the originating `attention()` call is non-zero and has expired, then `atrpc_dowork()` shall free the stored command string. ] */
+/* SRS_UARTIO_27_045: [ If `atrpc_open()` has been called on the `handle`, and the timeout value sent as `timeout_ms` to the originating `attention()` call is non-zero and has expired, then `atrpc_dowork()` shall call the terminal adapter response callback passed as `on_ta_response` to `attention()` using the `ta_response_context` parameter passed to `attention()` as the `context` parameter, `ERROR_ATRPC` as the `result_code` parameter, and `NULL` as the `message` parameter. ] */
+TEST_FUNCTION(dowork_SCENARIO_open_response_timeout) {
+    // Arrange
+    int error;
+    tickcounter_ms_t send_ms = 150, work_ms = 475;
+    ATRPC_HANDLE atrpc = atrpc_create();
+    ASSERT_IS_NOT_NULL(atrpc);
+    error = atrpc_open(atrpc, mock_on_open_response, atrpc);
+    ASSERT_ARE_EQUAL(int, 0, error);
+    enable_xio_close_callback = false;
+    enable_xio_send_callback = true;
+    intercepted_open_result_code = OK_3GPP;
 
-/* SRS_UARTIO_27_048: [ `atrpc_handshake()` shall negotiate auto-bauding by calling `(int)attention(ATRPC_HANDLE const handle, const char * const command_string, const size_t command_string_length, const size_t timeout_ms, TA_RESPONSE const ta_response, const void * const ta_response_context)`, using the `context` argument for the `handle` parameter, `NULL` as the `command_string` parameter, `0` as the `command_string_length` parameter, `100` as the `timeout_ms` parameter, `atrpc_handshake` as the `ta_response` parameter, and the `context` argument as the `ta_response_context` parameter, and will continue to do so, until it is called with a successful result code. ] */  
-/* SRS_UARTIO_27_049: [ If the call to `attention()` returns a non-zero value, then `atrpc_handshake()` shall call the `(void)on_open_complete(void * context, ta_result_code result_code, char * response)` callback provided to `atrpc_open()`, using the `on_open_complete_context` argument provided to `atrpc_open()` as the `context` parameter, `3GPP_ERROR` as the `result_code` parameter, and "XIO ERROR: Unable to negotiate auto-bauding!" as the `response` parameter. ] */  
-/* SRS_UARTIO_27_050: [ `atrpc_handshake()` shall normalize the terminal adapter response syntax by calling `(int)attention(ATRPC_HANDLE const handle, const char * const command_string, const size_t command_string_length, const size_t timeout_ms, TA_RESPONSE const ta_response, const void * const ta_response_context)`, using the `context` argument for the `handle` parameter, `E1V0` as the `command_string` parameter, `4` as the `command_string_length` parameter, `0` as the `timeout_ms` parameter, `atrpc_handshake` as the `ta_response` parameter, and the `context` argument as the `ta_response_context` parameter, and will continue to do so, until it is called with a successful result code. ] */  
-/* SRS_UARTIO_27_051: [ If the call to `attention()` returns a non-zero value, then `atrpc_handshake()` shall call the `(void)on_open_complete(void * context, ta_result_code result_code, char * response)` callback provided to `atrpc_open()`, using the `on_open_complete_context` argument provided to `atrpc_open()` as the `context` parameter, `3GPP_ERROR` as the `result_code` parameter, and "XIO ERROR: Unable to normalize the terminal adapter response syntax!" as the `response` parameter. ] */  
-/* SRS_UARTIO_27_052: [ `atrpc_handshake()` shall write the active profile by calling `(int)attention(ATRPC_HANDLE const handle, const char * const command_string, const size_t command_string_length, const size_t timeout_ms, TA_RESPONSE const ta_response, const void * const ta_response_context)`, using the `context` argument for the `handle` parameter, `&W` as the `command_string` parameter, `2` as the `command_string_length` parameter, `0` as the `timeout_ms` parameter, `atrpc_handshake` as the `ta_response` parameter, and the `context` argument as the `ta_response_context` parameter, and will continue to do so, until it is called with a successful result code. ] */  
-/* SRS_UARTIO_27_053: [ If the call to `attention()` returns a non-zero value, then `atrpc_handshake()` shall call the `(void)on_open_complete(void * context, ta_result_code result_code, char * response)` callback provided to `atrpc_open()`, using the `on_open_complete_context` argument provided to `atrpc_open()` as the `context` parameter, `3GPP_ERROR` as the `result_code` parameter, and "XIO ERROR: Unable to write the active profile!" as the `response` parameter. ] */  
-/* SRS_UARTIO_27_054: [ If 25 or more failed result codes are received, then `atrpc_handshake()` shall call the `(void)on_open_complete(void * context, ta_result_code result_code, char * response)` callback provided to `atrpc_open()`, using the `on_open_complete_context` argument provided to `atrpc_open()` as the `context` parameter, `3GPP_ERROR` as the `result_code` parameter, and "Exceeded maximum handshake attempts!" as the `response` parameter. ] */  
-/* SRS_UARTIO_27_055: [ If each call to `attention()` returns 0 before the maximum number of attempts have been reached, then `atrpc_handshake()` shall call the `(void)on_open_complete(void * context, ta_result_code result_code, char * response)` callback provided to `atrpc_open()`, using the `on_open_complete_context` argument provided to `atrpc_open()` as the `context` parameter, `3GPP_OK` as the `result_code` parameter, and "Handshake successful!" as the `response` parameter. ] */  
+    // Expected call listing
+    umock_c_reset_all_calls();
+    // on_io_open_complete() calls
+    EXPECTED_CALL(tickcounter_get_current_ms(IGNORED_PTR_ARG, IGNORED_PTR_ARG))
+        .CopyOutArgumentBuffer(2, &send_ms, sizeof(send_ms))
+        .SetReturn(0);
+    EXPECTED_CALL(gballoc_malloc(IGNORED_NUM_ARG));
+    STRICT_EXPECTED_CALL(xio_send(MOCK_UARTIO, IGNORED_PTR_ARG, 3, IGNORED_PTR_ARG, IGNORED_PTR_ARG))
+        .IgnoreArgument(2)
+        .IgnoreArgument(4)
+        .IgnoreArgument(5)
+        .ValidateArgumentBuffer(2, "AT\r", 3);
+    EXPECTED_CALL(xio_dowork(IGNORED_PTR_ARG));
+    // atrpc_dowork() calls
+    STRICT_EXPECTED_CALL(xio_dowork(MOCK_UARTIO));
+    STRICT_EXPECTED_CALL(tickcounter_get_current_ms(MOCK_TICKCOUNTER, IGNORED_PTR_ARG))
+        .CopyOutArgumentBuffer(2, &work_ms, sizeof(work_ms))
+        .IgnoreArgument(2)
+        .SetReturn(0);
+    EXPECTED_CALL(gballoc_free(IGNORED_PTR_ARG));
+    // attention() calls
+    EXPECTED_CALL(tickcounter_get_current_ms(IGNORED_PTR_ARG, IGNORED_PTR_ARG))
+        .SetReturn(0);
+    EXPECTED_CALL(gballoc_malloc(IGNORED_NUM_ARG));
+    STRICT_EXPECTED_CALL(xio_send(MOCK_UARTIO, IGNORED_PTR_ARG, 3, IGNORED_PTR_ARG, IGNORED_PTR_ARG))
+        .IgnoreArgument(2)
+        .IgnoreArgument(4)
+        .IgnoreArgument(5)
+        .SetReturn(0)
+        .ValidateArgumentBuffer(2, "AT\r", 3);  // This validation proves `ERROR_ATRPC` was sent
+    EXPECTED_CALL(xio_dowork(IGNORED_PTR_ARG));
+
+    // Act
+    intercepted_xio_on_io_open_complete(intercepted_xio_on_io_open_context, IO_OPEN_OK); // Allows capture of `on_send_complete` and begins handshake
+    atrpc_dowork(atrpc);
+
+    // Assert
+    ASSERT_ARE_EQUAL(char_ptr, umock_c_get_expected_calls(), umock_c_get_actual_calls());
+
+    // Cleanup
+    enable_xio_close_callback = true;
+    enable_xio_send_callback = false;
+    error = atrpc_close(atrpc);
+    ASSERT_ARE_EQUAL(int, 0, error);
+    atrpc_destroy(atrpc);
+}
+
+/* SRS_UARTIO_27_042: [ If `tickcounter_get_current_ms()` returns a non-zero value, then `dowork()` shall not attempt to calculate a timeout. ] */
+TEST_FUNCTION(dowork_SCENARIO_open_timeout_fails) {
+    // Arrange
+    int error;
+    tickcounter_ms_t send_ms = 150, work_ms = 475;
+    ATRPC_HANDLE atrpc = atrpc_create();
+    ASSERT_IS_NOT_NULL(atrpc);
+    error = atrpc_open(atrpc, mock_on_open_response, atrpc);
+    ASSERT_ARE_EQUAL(int, 0, error);
+    enable_xio_close_callback = false;
+    enable_xio_send_callback = true;
+
+    // Expected call listing
+    umock_c_reset_all_calls();
+    // on_io_open_complete() calls
+    EXPECTED_CALL(tickcounter_get_current_ms(IGNORED_PTR_ARG, IGNORED_PTR_ARG))
+        .CopyOutArgumentBuffer(2, &send_ms, sizeof(send_ms))
+        .SetReturn(0);
+    EXPECTED_CALL(gballoc_malloc(IGNORED_NUM_ARG));
+    STRICT_EXPECTED_CALL(xio_send(MOCK_UARTIO, IGNORED_PTR_ARG, 3, IGNORED_PTR_ARG, IGNORED_PTR_ARG))
+        .IgnoreArgument(2)
+        .IgnoreArgument(4)
+        .IgnoreArgument(5)
+        .ValidateArgumentBuffer(2, "AT\r", 3);
+    EXPECTED_CALL(xio_dowork(IGNORED_PTR_ARG));
+    // atrpc_dowork() calls
+    STRICT_EXPECTED_CALL(xio_dowork(MOCK_UARTIO));
+    STRICT_EXPECTED_CALL(tickcounter_get_current_ms(MOCK_TICKCOUNTER, IGNORED_PTR_ARG))
+        .CopyOutArgumentBuffer(2, &work_ms, sizeof(work_ms))
+        .IgnoreArgument(2)
+        .SetReturn(__LINE__);
+
+    // Act
+    intercepted_xio_on_io_open_complete(intercepted_xio_on_io_open_context, IO_OPEN_OK); // Allows capture of `on_send_complete` and begins handshake
+    atrpc_dowork(atrpc);
+
+    // Assert
+    ASSERT_ARE_EQUAL(char_ptr, umock_c_get_expected_calls(), umock_c_get_actual_calls());
+
+    // Cleanup
+    enable_xio_close_callback = true;
+    enable_xio_send_callback = false;
+    error = atrpc_close(atrpc);
+    ASSERT_ARE_EQUAL(int, 0, error);
+    atrpc_destroy(atrpc);
+}
+
+/* SRS_UARTIO_27_043: [ If `attention()` was called with a timeout of 0, then `dowork()` shall not attempt to calculate a timeout. ] */
+TEST_FUNCTION(dowork_SCENARIO_open_no_timeout) 
+{
+    // Arrange
+    int error;
+    tickcounter_ms_t send_ms = 150, work_ms = 475;
+    const char bytes_from_modem[] = "AT&W\r0\r\n";
+    const char normalization_response_from_modem[] = "ATE1V0\r0\r\n";
+    const char ping_response_from_modem[] = "AT\r\r\nOK\r\n";
+    ATRPC_HANDLE atrpc = atrpc_create();
+    ASSERT_IS_NOT_NULL(atrpc);
+    error = atrpc_open(atrpc, mock_on_open_response, atrpc);
+    ASSERT_ARE_EQUAL(int, 0, error);
+    enable_xio_close_callback = false;
+    enable_xio_send_callback = true;
+    intercepted_xio_on_io_open_complete(intercepted_xio_on_io_open_context, IO_OPEN_OK);  // call attention and store response callbacks
+    mock_vector_buffer[0] = '0';  // set the mocked ta result code
+    intercepted_xio_on_bytes_received(intercepted_xio_on_bytes_received_context, (const unsigned char *)ping_response_from_modem, (sizeof(ping_response_from_modem) - 1));  // Advance the handshake to prime the matching string with "ATE1V0\r"
+    mock_vector_buffer[0] = '0';  // set the mocked ta result code
+    intercepted_xio_on_bytes_received(intercepted_xio_on_bytes_received_context, (const unsigned char *)normalization_response_from_modem, (sizeof(normalization_response_from_modem) - 1));  // Advance the handshake to prime the matching string with "AT&W\r"
+    intercepted_open_result_code = ERROR_3GPP;
+    mock_vector_buffer[0] = '0';  // set the mocked ta result code
+    intercepted_xio_on_bytes_received(intercepted_xio_on_bytes_received_context, (const unsigned char *)bytes_from_modem, (sizeof(bytes_from_modem) - 1));
+    ASSERT_ARE_EQUAL(int, OK_3GPP, intercepted_open_result_code);
+    mock_vector_buffer[0] = '0';  // set the mocked ta result code
+
+    // Expected call listing
+    umock_c_reset_all_calls();
+    // atrpc_attention() calls
+    EXPECTED_CALL(tickcounter_get_current_ms(IGNORED_PTR_ARG, IGNORED_PTR_ARG))
+        .CopyOutArgumentBuffer(2, &send_ms, sizeof(send_ms))
+        .SetReturn(0);
+    EXPECTED_CALL(gballoc_malloc(IGNORED_NUM_ARG));
+    EXPECTED_CALL(xio_send(IGNORED_PTR_ARG, IGNORED_PTR_ARG, IGNORED_NUM_ARG, IGNORED_PTR_ARG, IGNORED_PTR_ARG));
+    EXPECTED_CALL(xio_dowork(IGNORED_PTR_ARG));
+    // atrpc_dowork() calls
+    STRICT_EXPECTED_CALL(xio_dowork(MOCK_UARTIO));
+    STRICT_EXPECTED_CALL(tickcounter_get_current_ms(MOCK_TICKCOUNTER, IGNORED_PTR_ARG))
+        .CopyOutArgumentBuffer(2, &work_ms, sizeof(work_ms))
+        .IgnoreArgument(2)
+        .SetReturn(0);
+
+    // Act
+    atrpc_attention(atrpc, NULL, 0, 0, mock_on_ta_response, atrpc);
+    atrpc_dowork(atrpc);
+
+    // Assert
+    ASSERT_ARE_EQUAL(char_ptr, umock_c_get_expected_calls(), umock_c_get_actual_calls());
+
+    // Cleanup
+    enable_xio_close_callback = true;
+    enable_xio_send_callback = false;
+    error = atrpc_close(atrpc);
+    ASSERT_ARE_EQUAL(int, 0, error);
+    atrpc_destroy(atrpc);
+}
+
+/* SRS_UARTIO_27_039: [ If the `handle` argument is `NULL`, then `atrpc_dowork()` shall do nothing. ] */
+TEST_FUNCTION(dowork_SCENARIO_NULL_handle) {
+    // Arrange
+    ATRPC_HANDLE atrpc = atrpc_create();
+    ASSERT_IS_NOT_NULL(atrpc);
+
+    // Expected call listing
+    umock_c_reset_all_calls();
+
+    // Act
+    atrpc_dowork(NULL);
+
+    // Assert
+    ASSERT_ARE_EQUAL(char_ptr, umock_c_get_expected_calls(), umock_c_get_actual_calls());
+
+    // Cleanup
+    atrpc_destroy(atrpc);
+}
+
+/* SRS_UARTIO_27_040: [ `atrpc_dowork()` shall call `(void)xio_dowork(XIO_HANDLE handle)` using the handle returned from the call to `xio_create()` for the `handle` parameter. ] */
+TEST_FUNCTION(dowork_SCENARIO_work_underlying_io) {
+    // Arrange
+    ATRPC_HANDLE atrpc = atrpc_create();
+    ASSERT_IS_NOT_NULL(atrpc);
+    enable_xio_close_callback = false;
+
+    // Expected call listing
+    umock_c_reset_all_calls();
+    STRICT_EXPECTED_CALL(xio_dowork(MOCK_UARTIO));
+
+    // Act
+    atrpc_dowork(atrpc);
+
+    // Assert
+    ASSERT_ARE_EQUAL(char_ptr, umock_c_get_expected_calls(), umock_c_get_actual_calls());
+
+    // Cleanup
+    atrpc_destroy(atrpc);
+}
+
+/* SRS_UARTIO_27_049: [ `atrpc_open()` shall call `(int)xio_open(XIO_HANDLE handle, ON_IO_OPEN_COMPLETE on_io_open_complete, void * on_io_open_complete_context, ON_BYTES_RECEIVED on_bytes_received, void * on_bytes_received_context, ON_IO_ERROR on_io_error, void * on_io_error_context)` using the handle returned from `xio_create()` as the `handle` parameter, the incoming `handle` parameter as the `on_bytes_received_context` parameter, and the incoming `handle` parameter as the `on_io_open_complete_context` parameter. ] */
+/* SRS_UARTIO_27_051: [ If no errors are encountered, `atrpc_open()` shall return 0. ] */
+TEST_FUNCTION(open_SCENARIO_success)
+{
+    // Arrange
+    int error;
+    ATRPC_HANDLE atrpc = atrpc_create();
+    ASSERT_IS_NOT_NULL(atrpc);
+
+    // Expected call listing
+    umock_c_reset_all_calls();
+    STRICT_EXPECTED_CALL(xio_open(MOCK_UARTIO, IGNORED_PTR_ARG, IGNORED_PTR_ARG, IGNORED_PTR_ARG, IGNORED_PTR_ARG, IGNORED_PTR_ARG, IGNORED_PTR_ARG))
+        .IgnoreArgument(2)
+        .IgnoreArgument(3)
+        .IgnoreArgument(4)
+        .IgnoreArgument(5)
+        .IgnoreArgument(6)
+        .IgnoreArgument(7)
+        .SetReturn(0);
+        
+    // Act
+    error = atrpc_open(atrpc, mock_on_open_response, atrpc);
+
+    // Assert
+    ASSERT_ARE_EQUAL(char_ptr, umock_c_get_expected_calls(), umock_c_get_actual_calls());
+    ASSERT_ARE_EQUAL(int, 0, error);
+
+    // Cleanup
+    error = atrpc_close(atrpc);
+    ASSERT_ARE_EQUAL(int, 0, error);
+    atrpc_destroy(atrpc);
+}
+
+/* SRS_UARTIO_27_050: [ If `xio_open()` returns a non-zero value, then `atrpc_open()` shall do nothing and return a non-zero value. ] */
+TEST_FUNCTION(open_SCENARIO_negative_tests)
+{
+    // Arrange
+    int negativeTestsInitResult = umock_c_negative_tests_init();
+    uint64_t negativeTestsToSkip = 0;
+    ASSERT_ARE_EQUAL(int, 0, negativeTestsInitResult);
+
+    int error;
+    ATRPC_HANDLE atrpc = atrpc_create();
+    ASSERT_IS_NOT_NULL(atrpc);
+
+    // Expected call listing
+    umock_c_reset_all_calls();
+    STRICT_EXPECTED_CALL(xio_open(MOCK_UARTIO, IGNORED_PTR_ARG, IGNORED_PTR_ARG, IGNORED_PTR_ARG, IGNORED_PTR_ARG, IGNORED_PTR_ARG, IGNORED_PTR_ARG))
+        .IgnoreArgument(2)
+        .IgnoreArgument(3)
+        .IgnoreArgument(4)
+        .IgnoreArgument(5)
+        .IgnoreArgument(6)
+        .IgnoreArgument(7)
+        .SetFailReturn(__LINE__)
+        .SetReturn(0);
+    umock_c_negative_tests_snapshot();
+
+    for (size_t i = 0; i < umock_c_negative_tests_call_count(); ++i)
+    {
+        if (skipNegativeTest(negativeTestsToSkip, i)) { continue; }
+        umock_c_negative_tests_reset();
+        umock_c_negative_tests_fail_call(i);
+
+        // Act
+        error = atrpc_open(atrpc, mock_on_open_response, atrpc);
+
+        // Assert
+        ASSERT_ARE_NOT_EQUAL(int, 0, error);
+    }
+
+    // Cleanup
+    atrpc_destroy(atrpc);
+
+    umock_c_negative_tests_deinit();
+}
+
+/* SRS_UARTIO_27_046: [ If the `handle` argument is `NULL`, then `atrpc_open()` shall fail and return a non-zero value. ] */
+TEST_FUNCTION(open_SCENARIO_NULL_handle)
+{
+    // Arrange
+    int error;
+    ATRPC_HANDLE atrpc = atrpc_create();
+    ASSERT_IS_NOT_NULL(atrpc);
+
+    // Expected call listing
+    umock_c_reset_all_calls();
+
+    // Act
+    error = atrpc_open(NULL, mock_on_open_response, atrpc);
+
+    // Assert
+    ASSERT_ARE_EQUAL(char_ptr, umock_c_get_expected_calls(), umock_c_get_actual_calls());
+    ASSERT_ARE_NOT_EQUAL(int, 0, error);
+
+    // Cleanup
+    atrpc_destroy(atrpc);
+}
+
+/* SRS_UARTIO_27_047: [ If the `on_open_complete` argument is `NULL`, then `atrpc_open()` shall fail and return a non-zero value. ] */
+TEST_FUNCTION(open_SCENARIO_NULL_on_open_complete)
+{
+    // Arrange
+    int error;
+    ATRPC_HANDLE atrpc = atrpc_create();
+    ASSERT_IS_NOT_NULL(atrpc);
+
+    // Expected call listing
+    umock_c_reset_all_calls();
+
+    // Act
+    error = atrpc_open(atrpc, NULL, atrpc);
+
+    // Assert
+    ASSERT_ARE_EQUAL(char_ptr, umock_c_get_expected_calls(), umock_c_get_actual_calls());
+    ASSERT_ARE_NOT_EQUAL(int, 0, error);
+
+    // Cleanup
+    atrpc_destroy(atrpc);
+}
+
+/* SRS_UARTIO_27_048: [ If `atrpc_open()` has been called previously and `atrpc_close()` has not been called on the `handle`, `atrpc_open()` shall fail and return a non-zero value. ] */
+TEST_FUNCTION(open_SCENARIO_attempt_to_open_again_before_closing)
+{
+    // Arrange
+    int error;
+    ATRPC_HANDLE atrpc = atrpc_create();
+    ASSERT_IS_NOT_NULL(atrpc);
+    error = atrpc_open(atrpc, mock_on_open_response, atrpc);
+    ASSERT_ARE_EQUAL(int, 0, error);
+
+    // Expected call listing
+    umock_c_reset_all_calls();
+
+    // Act
+    error = atrpc_open(atrpc, mock_on_open_response, atrpc);
+
+    // Assert
+    ASSERT_ARE_EQUAL(char_ptr, umock_c_get_expected_calls(), umock_c_get_actual_calls());
+    ASSERT_ARE_NOT_EQUAL(int, 0, error);
+
+    // Cleanup
+    error = atrpc_close(atrpc);
+    ASSERT_ARE_EQUAL(int, 0, error);
+    atrpc_destroy(atrpc);
+}
+
+/* SRS_UARTIO_27_056: [ If the ping times-out when negotiating auto-baud, then `on_bytes_received()` shall reissue the ping by calling `(int)xio_send(XIO_HANDLE handle, const void * buffer, size_t size, ON_IO_SEND_COMPLETE on_io_send_complete, void * on_io_send_context)` using the xio handle returned from `xio_create()` for the handle parameter, and `AT\r` for the `buffer` parameter, and `3` for the `size` parameter. ] */
+TEST_FUNCTION(on_bytes_received_SCENARIO_handshake_auto_baud_timeout)
+{
+    // Arrange
+    int error;
+    tickcounter_ms_t send_ms = 150, work_ms = 475;
+    ATRPC_HANDLE atrpc = atrpc_create();
+    ASSERT_IS_NOT_NULL(atrpc);
+    error = atrpc_open(atrpc, mock_on_open_response, atrpc);
+    ASSERT_ARE_EQUAL(int, 0, error);
+    enable_xio_close_callback = false;
+    enable_xio_send_callback = true;
+
+    // Expected call listing
+    umock_c_reset_all_calls();
+    // on_io_open_complete() calls
+    EXPECTED_CALL(tickcounter_get_current_ms(IGNORED_PTR_ARG, IGNORED_PTR_ARG))
+        .CopyOutArgumentBuffer(2, &send_ms, sizeof(send_ms))
+        .SetReturn(0);
+    EXPECTED_CALL(gballoc_malloc(IGNORED_NUM_ARG));
+    STRICT_EXPECTED_CALL(xio_send(MOCK_UARTIO, IGNORED_PTR_ARG, 3, IGNORED_PTR_ARG, IGNORED_PTR_ARG))
+        .IgnoreArgument(2)
+        .IgnoreArgument(4)
+        .IgnoreArgument(5)
+        .ValidateArgumentBuffer(2, "AT\r", 3);
+    EXPECTED_CALL(xio_dowork(IGNORED_PTR_ARG));
+    // atrpc_dowork() calls
+    STRICT_EXPECTED_CALL(xio_dowork(MOCK_UARTIO));
+    STRICT_EXPECTED_CALL(tickcounter_get_current_ms(MOCK_TICKCOUNTER, IGNORED_PTR_ARG))
+        .CopyOutArgumentBuffer(2, &work_ms, sizeof(work_ms))
+        .IgnoreArgument(2)
+        .SetReturn(0);
+    EXPECTED_CALL(gballoc_free(IGNORED_PTR_ARG));
+    EXPECTED_CALL(tickcounter_get_current_ms(IGNORED_PTR_ARG, IGNORED_PTR_ARG))
+        .SetReturn(0);
+    EXPECTED_CALL(gballoc_malloc(IGNORED_NUM_ARG));
+    STRICT_EXPECTED_CALL(xio_send(MOCK_UARTIO, IGNORED_PTR_ARG, 3, IGNORED_PTR_ARG, IGNORED_PTR_ARG))
+        .IgnoreArgument(2)
+        .IgnoreArgument(4)
+        .IgnoreArgument(5)
+        .SetReturn(0)
+        .ValidateArgumentBuffer(2, "AT\r", 3);
+    EXPECTED_CALL(xio_dowork(IGNORED_PTR_ARG));
+
+    // Act
+    intercepted_xio_on_io_open_complete(intercepted_xio_on_io_open_context, IO_OPEN_OK); // Allows capture of `on_send_complete` and begins handshake
+    atrpc_dowork(atrpc);
+
+    // Assert
+    ASSERT_ARE_EQUAL(char_ptr, umock_c_get_expected_calls(), umock_c_get_actual_calls());
+
+    // Cleanup
+    enable_xio_close_callback = true;
+    enable_xio_send_callback = false;
+    error = atrpc_close(atrpc);
+    ASSERT_ARE_EQUAL(int, 0, error);
+    atrpc_destroy(atrpc);
+}
+
+/* SRS_UARTIO_27_057: [ If `atrpc_attention` returns a non-zero value, then `on_io_open_complete()` shall call the `on_open_complete` callback passed to `atrpc_open()` using the `on_open_complete_context` parameter passed to `atrpc_open()` as the `context` parameter, `ERROR_3GPP` as the `result_code` parameter, and `NULL` as the `response` parameter. ] */
+TEST_FUNCTION(on_bytes_received_SCENARIO_handshake_auto_baud_resend_failure)
+{
+    // Arrange
+    int error;
+    tickcounter_ms_t send_ms = 150, work_ms = 475;
+    ATRPC_HANDLE atrpc = atrpc_create();
+    ASSERT_IS_NOT_NULL(atrpc);
+    error = atrpc_open(atrpc, mock_on_open_response, atrpc);
+    ASSERT_ARE_EQUAL(int, 0, error);
+    enable_xio_close_callback = false;
+    enable_xio_send_callback = true;
+    intercepted_open_result_code = OK_3GPP;
+
+    // Expected call listing
+    umock_c_reset_all_calls();
+    // on_io_open_complete() calls
+    EXPECTED_CALL(tickcounter_get_current_ms(IGNORED_PTR_ARG, IGNORED_PTR_ARG))
+        .CopyOutArgumentBuffer(2, &send_ms, sizeof(send_ms))
+        .SetReturn(0);
+    EXPECTED_CALL(gballoc_malloc(IGNORED_NUM_ARG));
+    STRICT_EXPECTED_CALL(xio_send(MOCK_UARTIO, IGNORED_PTR_ARG, 3, IGNORED_PTR_ARG, IGNORED_PTR_ARG))
+        .IgnoreArgument(2)
+        .IgnoreArgument(4)
+        .IgnoreArgument(5)
+        .ValidateArgumentBuffer(2, "AT\r", 3);
+    EXPECTED_CALL(xio_dowork(IGNORED_PTR_ARG));
+    // atrpc_dowork() calls
+    STRICT_EXPECTED_CALL(xio_dowork(MOCK_UARTIO));
+    STRICT_EXPECTED_CALL(tickcounter_get_current_ms(MOCK_TICKCOUNTER, IGNORED_PTR_ARG))
+        .CopyOutArgumentBuffer(2, &work_ms, sizeof(work_ms))
+        .IgnoreArgument(2)
+        .SetReturn(0);
+    EXPECTED_CALL(gballoc_free(IGNORED_PTR_ARG));
+    EXPECTED_CALL(tickcounter_get_current_ms(IGNORED_PTR_ARG, IGNORED_PTR_ARG))
+        .SetReturn(0);
+    EXPECTED_CALL(gballoc_malloc(IGNORED_NUM_ARG));
+    STRICT_EXPECTED_CALL(xio_send(MOCK_UARTIO, IGNORED_PTR_ARG, 3, IGNORED_PTR_ARG, IGNORED_PTR_ARG))
+        .IgnoreArgument(2)
+        .IgnoreArgument(4)
+        .IgnoreArgument(5)
+        .SetReturn(__LINE__)
+        .ValidateArgumentBuffer(2, "AT\r", 3);
+    EXPECTED_CALL(gballoc_free(IGNORED_PTR_ARG));
+
+    // Act
+    intercepted_xio_on_io_open_complete(intercepted_xio_on_io_open_context, IO_OPEN_OK); // Allows capture of `on_send_complete` and begins handshake
+    atrpc_dowork(atrpc);
+
+    // Assert
+    ASSERT_ARE_EQUAL(char_ptr, umock_c_get_expected_calls(), umock_c_get_actual_calls());
+    ASSERT_ARE_EQUAL(int, ERROR_ATRPC, intercepted_open_result_code);
+
+    // Cleanup
+    enable_xio_close_callback = true;
+    enable_xio_send_callback = false;
+    error = atrpc_close(atrpc);
+    ASSERT_ARE_EQUAL(int, 0, error);
+    atrpc_destroy(atrpc);
+}
+
+/* SRS_UARTIO_27_065: [ During auto-baud negotiation, if 50 or more time-outs occur, then `modem_handshake()` shall call the `(void)on_open_complete(void * context, ta_result_code result_code, char * response)` callback provided to `atrpc_open()`, using the `on_open_complete_context` argument provided to `atrpc_open()` as the `context` parameter, `ERROR_ATRPC` as the `result_code` parameter, and `NULL` as the `response` parameter. ] */
+TEST_FUNCTION(on_bytes_received_SCENARIO_handshake_max_timeouts)
+{
+    // Arrange
+    int error;
+    tickcounter_ms_t send_ms = 150, work_ms = 475;
+    ATRPC_HANDLE atrpc = atrpc_create();
+    ASSERT_IS_NOT_NULL(atrpc);
+    error = atrpc_open(atrpc, mock_on_open_response, atrpc);
+    ASSERT_ARE_EQUAL(int, 0, error);
+    enable_xio_close_callback = false;
+    enable_xio_send_callback = true;
+    intercepted_open_result_code = OK_3GPP;
+
+    // Expected call listing
+    umock_c_reset_all_calls();
+    // on_io_open_complete() calls
+    EXPECTED_CALL(tickcounter_get_current_ms(IGNORED_PTR_ARG, IGNORED_PTR_ARG))
+        .CopyOutArgumentBuffer(2, &send_ms, sizeof(send_ms))
+        .SetReturn(0);
+    EXPECTED_CALL(gballoc_malloc(IGNORED_NUM_ARG));
+    STRICT_EXPECTED_CALL(xio_send(MOCK_UARTIO, IGNORED_PTR_ARG, 3, IGNORED_PTR_ARG, IGNORED_PTR_ARG))
+        .IgnoreArgument(2)
+        .IgnoreArgument(4)
+        .IgnoreArgument(5)
+        .ValidateArgumentBuffer(2, "AT\r", 3);
+    EXPECTED_CALL(xio_dowork(IGNORED_PTR_ARG));
+    // atrpc_dowork() calls
+    STRICT_EXPECTED_CALL(xio_dowork(MOCK_UARTIO));
+    STRICT_EXPECTED_CALL(tickcounter_get_current_ms(MOCK_TICKCOUNTER, IGNORED_PTR_ARG))
+        .CopyOutArgumentBuffer(2, &work_ms, sizeof(work_ms))
+        .IgnoreArgument(2)
+        .SetReturn(0);
+    EXPECTED_CALL(gballoc_free(IGNORED_PTR_ARG));
+    EXPECTED_CALL(tickcounter_get_current_ms(IGNORED_PTR_ARG, IGNORED_PTR_ARG))
+        .SetReturn(0);
+    EXPECTED_CALL(gballoc_malloc(IGNORED_NUM_ARG));
+    STRICT_EXPECTED_CALL(xio_send(MOCK_UARTIO, IGNORED_PTR_ARG, 3, IGNORED_PTR_ARG, IGNORED_PTR_ARG))
+        .IgnoreArgument(2)
+        .IgnoreArgument(4)
+        .IgnoreArgument(5)
+        .SetReturn(0)
+        .ValidateArgumentBuffer(2, "AT\r", 3);
+    EXPECTED_CALL(xio_dowork(IGNORED_PTR_ARG));
+
+    // Act
+    intercepted_xio_on_io_open_complete(intercepted_xio_on_io_open_context, IO_OPEN_OK); // Allows capture of `on_send_complete` and begins handshake
+    for (int i = 0; i < 50; ++i) {
+        mock_vector_buffer[0] = '0';  // set the mocked ta result code
+        atrpc_dowork(atrpc);
+    }
+
+    // Assert
+    ASSERT_ARE_EQUAL(int, ERROR_ATRPC, intercepted_open_result_code);
+
+    // Cleanup
+    enable_xio_close_callback = true;
+    enable_xio_send_callback = false;
+    error = atrpc_close(atrpc);
+    ASSERT_ARE_EQUAL(int, 0, error);
+    atrpc_destroy(atrpc);
+}
+
+/* SRS_UARTIO_27_058: [ During auto-baud negotiation, `on_bytes_received()` shall accept "0\r" as a valid response. ] */
+/* SRS_UARTIO_27_060: [ Once a complete response has been received, then `on_bytes_received()` shall free the stored command string. ] */
+/* SRS_UARTIO_27_061: [ When auto-baud negotiation has completed, then `on_bytes_received()` shall normalize the ta responses by calling `(int)xio_send(XIO_HANDLE handle, const void * buffer, size_t size, ON_IO_SEND_COMPLETE on_io_send_complete, void * on_io_send_context)` using the xio handle returned from `xio_create()` during `atrpc_create()` for the handle parameter, and `ATE1V0\r` for the `buffer` parameter, and `7` for the `size` parameter. ] */
+TEST_FUNCTION(on_bytes_received_SCENARIO_handshake_auto_baud_success)
+{
+    // Arrange
+    int error;
+    const char bytes_from_modem[] = "AT\r0\r\n";
+    ATRPC_HANDLE atrpc = atrpc_create();
+    ASSERT_IS_NOT_NULL(atrpc);
+    error = atrpc_open(atrpc, mock_on_open_response, atrpc);
+    ASSERT_ARE_EQUAL(int, 0, error);
+    enable_xio_close_callback = false;
+    enable_xio_send_callback = true;
+    intercepted_xio_on_io_open_complete(intercepted_xio_on_io_open_context, IO_OPEN_OK);  // call attention and store response callbacks
+    mock_vector_buffer[0] = '0';  // set the mocked ta result code
+
+    // Expected call listing
+    umock_c_reset_all_calls();
+    // on_bytes_received() calls
+    EXPECTED_CALL(VECTOR_front(IGNORED_PTR_ARG));
+    EXPECTED_CALL(VECTOR_size(IGNORED_PTR_ARG));
+    EXPECTED_CALL(gballoc_free(IGNORED_PTR_ARG));
+    // attention() calls
+    EXPECTED_CALL(tickcounter_get_current_ms(IGNORED_PTR_ARG, IGNORED_PTR_ARG))
+        .SetReturn(0);
+    EXPECTED_CALL(gballoc_malloc(IGNORED_NUM_ARG));
+    STRICT_EXPECTED_CALL(xio_send(MOCK_UARTIO, IGNORED_PTR_ARG, 7, IGNORED_PTR_ARG, IGNORED_PTR_ARG))
+        .IgnoreArgument(2)
+        .IgnoreArgument(4)
+        .IgnoreArgument(5)
+        .SetReturn(0)
+        .ValidateArgumentBuffer(2, "ATE1V0\r", 7);
+    EXPECTED_CALL(xio_dowork(IGNORED_PTR_ARG));
+    // ... resume on_bytes_received() calls
+    EXPECTED_CALL(VECTOR_clear(IGNORED_PTR_ARG));
+
+    // Act
+    intercepted_xio_on_bytes_received(intercepted_xio_on_bytes_received_context, (const unsigned char *)bytes_from_modem, (sizeof(bytes_from_modem) - 1));
+
+    // Assert
+    ASSERT_ARE_EQUAL(char_ptr, umock_c_get_expected_calls(), umock_c_get_actual_calls());
+
+    // Cleanup
+    enable_xio_close_callback = true;
+    enable_xio_send_callback = false;
+    error = atrpc_close(atrpc);
+    ASSERT_ARE_EQUAL(int, 0, error);
+    atrpc_destroy(atrpc);
+}
+
+/* SRS_UARTIO_27_059: [ During auto-baud negotiation, `on_bytes_received()` shall accept "\r\nOK\r\n" as a valid response. ] */
+TEST_FUNCTION(on_bytes_received_SCENARIO_handshake_verbose_auto_baud_success)
+{
+    // Arrange
+    int error;
+    const char bytes_from_modem[] = "AT\r\r\nOK\r\n";
+    ATRPC_HANDLE atrpc = atrpc_create();
+    ASSERT_IS_NOT_NULL(atrpc);
+    error = atrpc_open(atrpc, mock_on_open_response, atrpc);
+    ASSERT_ARE_EQUAL(int, 0, error);
+    enable_xio_close_callback = false;
+    enable_xio_send_callback = true;
+    intercepted_xio_on_io_open_complete(intercepted_xio_on_io_open_context, IO_OPEN_OK);  // call attention and store response callbacks
+    mock_vector_buffer[0] = '0';  // set the mocked ta result code
+
+    // Expected call listing
+    umock_c_reset_all_calls();
+    // on_bytes_received() calls
+    EXPECTED_CALL(VECTOR_front(IGNORED_PTR_ARG));
+    EXPECTED_CALL(VECTOR_size(IGNORED_PTR_ARG));
+    EXPECTED_CALL(gballoc_free(IGNORED_PTR_ARG));
+    // attention() calls
+    EXPECTED_CALL(tickcounter_get_current_ms(IGNORED_PTR_ARG, IGNORED_PTR_ARG))
+        .SetReturn(0);
+    EXPECTED_CALL(gballoc_malloc(IGNORED_NUM_ARG));
+    STRICT_EXPECTED_CALL(xio_send(MOCK_UARTIO, IGNORED_PTR_ARG, 7, IGNORED_PTR_ARG, IGNORED_PTR_ARG))
+        .IgnoreArgument(2)
+        .IgnoreArgument(4)
+        .IgnoreArgument(5)
+        .SetReturn(0)
+        .ValidateArgumentBuffer(2, "ATE1V0\r", 7);
+    EXPECTED_CALL(xio_dowork(IGNORED_PTR_ARG));
+    // ... resume on_bytes_received() calls
+    EXPECTED_CALL(VECTOR_clear(IGNORED_PTR_ARG));
+
+    // Act
+    intercepted_xio_on_bytes_received(intercepted_xio_on_bytes_received_context, (const unsigned char *)bytes_from_modem, (sizeof(bytes_from_modem) - 1));
+
+    // Assert
+    ASSERT_ARE_EQUAL(char_ptr, umock_c_get_expected_calls(), umock_c_get_actual_calls());
+
+    // Cleanup
+    enable_xio_close_callback = true;
+    enable_xio_send_callback = false;
+    error = atrpc_close(atrpc);
+    ASSERT_ARE_EQUAL(int, 0, error);
+    atrpc_destroy(atrpc);
+}
+
+/* SRS_UARTIO_27_062: [ If the call to `attention()` returns a non-zero value, then `modem_handshake()` shall call the `(void)on_open_complete(void * context, ta_result_code result_code, char * response)` callback provided to `atrpc_open()`, using the `on_open_complete_context` argument provided to `atrpc_open()` as the `context` parameter, `3GPP_ERROR` as the `result_code` parameter, and `NULL` as the `response` parameter. ] */
+TEST_FUNCTION(on_bytes_received_SCENARIO_handshake_normalization_failure)
+{
+    // Arrange
+    int error;
+    const char bytes_from_modem[] = "AT\r\r\nOK\r\n";
+    ATRPC_HANDLE atrpc = atrpc_create();
+    ASSERT_IS_NOT_NULL(atrpc);
+    error = atrpc_open(atrpc, mock_on_open_response, atrpc);
+    ASSERT_ARE_EQUAL(int, 0, error);
+    enable_xio_close_callback = false;
+    enable_xio_send_callback = true;
+    intercepted_xio_on_io_open_complete(intercepted_xio_on_io_open_context, IO_OPEN_OK);  // call attention and store response callbacks
+    intercepted_open_result_code = OK_3GPP;
+    mock_vector_buffer[0] = '0';  // set the mocked ta result code
+
+    // Expected call listing
+    umock_c_reset_all_calls();
+    // on_bytes_received() calls
+    EXPECTED_CALL(VECTOR_front(IGNORED_PTR_ARG));
+    EXPECTED_CALL(VECTOR_size(IGNORED_PTR_ARG));
+    EXPECTED_CALL(gballoc_free(IGNORED_PTR_ARG));
+    EXPECTED_CALL(tickcounter_get_current_ms(IGNORED_PTR_ARG, IGNORED_PTR_ARG))
+        .SetReturn(0);
+    // attention() calls
+    EXPECTED_CALL(gballoc_malloc(IGNORED_NUM_ARG));
+    STRICT_EXPECTED_CALL(xio_send(MOCK_UARTIO, IGNORED_PTR_ARG, 7, IGNORED_PTR_ARG, IGNORED_PTR_ARG))
+        .IgnoreArgument(2)
+        .IgnoreArgument(4)
+        .IgnoreArgument(5)
+        .SetReturn(__LINE__)
+        .ValidateArgumentBuffer(2, "ATE1V0\r", 7);
+    EXPECTED_CALL(gballoc_free(IGNORED_PTR_ARG));
+    // ... resume on_bytes_received() calls
+    EXPECTED_CALL(VECTOR_clear(IGNORED_PTR_ARG));
+
+    // Act
+    intercepted_xio_on_bytes_received(intercepted_xio_on_bytes_received_context, (const unsigned char *)bytes_from_modem, (sizeof(bytes_from_modem) - 1));
+
+    // Assert
+    ASSERT_ARE_EQUAL(char_ptr, umock_c_get_expected_calls(), umock_c_get_actual_calls());
+    ASSERT_ARE_EQUAL(int, ERROR_ATRPC, intercepted_open_result_code);
+
+    // Cleanup
+    enable_xio_close_callback = true;
+    enable_xio_send_callback = false;
+    error = atrpc_close(atrpc);
+    ASSERT_ARE_EQUAL(int, 0, error);
+    atrpc_destroy(atrpc);
+}
+
+/* SRS_UARTIO_27_063: [ Once the communication with the modem has been normalized, `on_bytes_received()` shall write the active profile by calling `(int)attention(ATRPC_HANDLE const handle, const char * const command_string, const size_t command_string_length, const size_t timeout_ms, TA_RESPONSE const ta_response, const void * const ta_response_context)`, using the `context` argument for the `handle` parameter, `&W` as the `command_string` parameter, `2` as the `command_string_length` parameter, `0` as the `timeout_ms` parameter, `modem_handshake` as the `ta_response` parameter, and the `context` argument as the `ta_response_context` parameter. ] */
+TEST_FUNCTION(on_bytes_received_SCENARIO_handshake_normalization_success)
+{
+    // Arrange
+    int error;
+    const char bytes_from_modem[] = "ATE1V0\r0\r\n";
+    const char ping_response_from_modem[] = "AT\r\r\nOK\r\n";
+    ATRPC_HANDLE atrpc = atrpc_create();
+    ASSERT_IS_NOT_NULL(atrpc);
+    error = atrpc_open(atrpc, mock_on_open_response, atrpc);
+    ASSERT_ARE_EQUAL(int, 0, error);
+    enable_xio_close_callback = false;
+    enable_xio_send_callback = true;
+    intercepted_xio_on_io_open_complete(intercepted_xio_on_io_open_context, IO_OPEN_OK);  // call attention and store response callbacks
+    mock_vector_buffer[0] = '0';  // set the mocked ta result code
+    intercepted_xio_on_bytes_received(intercepted_xio_on_bytes_received_context, (const unsigned char *)ping_response_from_modem, (sizeof(ping_response_from_modem) - 1));  // Advance the handshake to prime the matching string with "ATE1V0\r"
+    mock_vector_buffer[0] = '0';  // set the mocked ta result code
+
+    // Expected call listing
+    umock_c_reset_all_calls();
+    // on_bytes_received() calls
+    for (int i = 0; i < (sizeof("0\r") - 1); ++i) {
+        EXPECTED_CALL(VECTOR_push_back(IGNORED_PTR_ARG, IGNORED_PTR_ARG, IGNORED_NUM_ARG));
+    }
+    EXPECTED_CALL(VECTOR_front(IGNORED_PTR_ARG));
+    EXPECTED_CALL(VECTOR_size(IGNORED_PTR_ARG));
+    EXPECTED_CALL(gballoc_free(IGNORED_PTR_ARG));
+    // attention() calls
+    EXPECTED_CALL(tickcounter_get_current_ms(IGNORED_PTR_ARG, IGNORED_PTR_ARG))
+        .SetReturn(0);
+    EXPECTED_CALL(gballoc_malloc(IGNORED_NUM_ARG));
+    STRICT_EXPECTED_CALL(xio_send(MOCK_UARTIO, IGNORED_PTR_ARG, 5, IGNORED_PTR_ARG, IGNORED_PTR_ARG))
+        .IgnoreArgument(2)
+        .IgnoreArgument(4)
+        .IgnoreArgument(5)
+        .SetReturn(0)
+        .ValidateArgumentBuffer(2, "AT&W\r", 5);
+    EXPECTED_CALL(xio_dowork(IGNORED_PTR_ARG));
+    // ... resume on_bytes_received() calls
+    EXPECTED_CALL(VECTOR_clear(IGNORED_PTR_ARG));
+
+    // Act
+    intercepted_xio_on_bytes_received(intercepted_xio_on_bytes_received_context, (const unsigned char *)bytes_from_modem, (sizeof(bytes_from_modem) - 1));
+
+    // Assert
+    ASSERT_ARE_EQUAL(char_ptr, umock_c_get_expected_calls(), umock_c_get_actual_calls());
+
+    // Cleanup
+    enable_xio_close_callback = true;
+    enable_xio_send_callback = false;
+    error = atrpc_close(atrpc);
+    ASSERT_ARE_EQUAL(int, 0, error);
+    atrpc_destroy(atrpc);
+}
+
+/* SRS_UARTIO_27_064: [ If the call to `attention()` returns a non-zero value, then `modem_handshake()` shall call the `(void)on_open_complete(void * context, ta_result_code result_code, char * response)` callback provided to `atrpc_open()`, using the `on_open_complete_context` argument provided to `atrpc_open()` as the `context` parameter, `3GPP_ERROR` as the `result_code` parameter, and "XIO ERROR: Unable to write the active profile!" as the `response` parameter. ] */
+TEST_FUNCTION(on_bytes_received_SCENARIO_handshake_write_profile_failure)
+{
+    // Arrange
+    int error;
+    const char bytes_from_modem[] = "ATE1V0\r0\r\n";
+    const char ping_response_from_modem[] = "AT\r\r\nOK\r\n";
+    ATRPC_HANDLE atrpc = atrpc_create();
+    ASSERT_IS_NOT_NULL(atrpc);
+    error = atrpc_open(atrpc, mock_on_open_response, atrpc);
+    ASSERT_ARE_EQUAL(int, 0, error);
+    enable_xio_close_callback = false;
+    enable_xio_send_callback = true;
+    intercepted_xio_on_io_open_complete(intercepted_xio_on_io_open_context, IO_OPEN_OK);  // call attention and store response callbacks
+    mock_vector_buffer[0] = '0';  // set the mocked ta result code
+    intercepted_xio_on_bytes_received(intercepted_xio_on_bytes_received_context, (const unsigned char *)ping_response_from_modem, (sizeof(ping_response_from_modem) - 1));  // Advance the handshake to prime the matching string with "ATE1V0\r"
+    intercepted_open_result_code = OK_3GPP;
+    mock_vector_buffer[0] = '0';  // set the mocked ta result code
+
+    // Expected call listing
+    umock_c_reset_all_calls();
+    // on_bytes_received() calls
+    for (int i = 0; i < (sizeof("0\r") - 1); ++i) {
+        EXPECTED_CALL(VECTOR_push_back(IGNORED_PTR_ARG, IGNORED_PTR_ARG, IGNORED_NUM_ARG));
+    }
+    EXPECTED_CALL(VECTOR_front(IGNORED_PTR_ARG));
+    EXPECTED_CALL(VECTOR_size(IGNORED_PTR_ARG));
+    EXPECTED_CALL(gballoc_free(IGNORED_PTR_ARG));
+    // attention() calls
+    EXPECTED_CALL(tickcounter_get_current_ms(IGNORED_PTR_ARG, IGNORED_PTR_ARG))
+        .SetReturn(0);
+    EXPECTED_CALL(gballoc_malloc(IGNORED_NUM_ARG));
+    STRICT_EXPECTED_CALL(xio_send(MOCK_UARTIO, IGNORED_PTR_ARG, 5, IGNORED_PTR_ARG, IGNORED_PTR_ARG))
+        .IgnoreArgument(2)
+        .IgnoreArgument(4)
+        .IgnoreArgument(5)
+        .SetReturn(__LINE__)
+        .ValidateArgumentBuffer(2, "AT&W\r", 5);
+    EXPECTED_CALL(gballoc_free(IGNORED_PTR_ARG));
+    // ... resume on_bytes_received() calls
+    EXPECTED_CALL(VECTOR_clear(IGNORED_PTR_ARG));
+
+    // Act
+    intercepted_xio_on_bytes_received(intercepted_xio_on_bytes_received_context, (const unsigned char *)bytes_from_modem, (sizeof(bytes_from_modem) - 1));
+
+    // Assert
+    ASSERT_ARE_EQUAL(char_ptr, umock_c_get_expected_calls(), umock_c_get_actual_calls());
+    ASSERT_ARE_EQUAL(int, ERROR_ATRPC, intercepted_open_result_code);
+
+    // Cleanup
+    enable_xio_close_callback = true;
+    enable_xio_send_callback = false;
+    error = atrpc_close(atrpc);
+    ASSERT_ARE_EQUAL(int, 0, error);
+    atrpc_destroy(atrpc);
+}
+
+/* SRS_UARTIO_27_066: [ Once the profile has been successfully stored, then `on_bytes_received()` shall call the `(void)on_open_complete(void * context, ta_result_code result_code, char * response)` callback provided to `atrpc_open()`, using the `on_open_complete_context` argument provided to `atrpc_open()` as the `context` parameter, `3GPP_OK` as the `result_code` parameter, and `NULL` as the `response` parameter. ] */
+TEST_FUNCTION(on_bytes_received_SCENARIO_handshake_complete)
+{
+    // Arrange
+    int error;
+    const char bytes_from_modem[] = "AT&W\r0\r\n";
+    const char normalization_response_from_modem[] = "ATE1V0\r0\r\n";
+    const char ping_response_from_modem[] = "AT\r\r\nOK\r\n";
+    ATRPC_HANDLE atrpc = atrpc_create();
+    ASSERT_IS_NOT_NULL(atrpc);
+    error = atrpc_open(atrpc, mock_on_open_response, atrpc);
+    ASSERT_ARE_EQUAL(int, 0, error);
+    enable_xio_close_callback = false;
+    enable_xio_send_callback = true;
+    intercepted_xio_on_io_open_complete(intercepted_xio_on_io_open_context, IO_OPEN_OK);  // call attention and store response callbacks
+    mock_vector_buffer[0] = '0';  // set the mocked ta result code
+    intercepted_xio_on_bytes_received(intercepted_xio_on_bytes_received_context, (const unsigned char *)ping_response_from_modem, (sizeof(ping_response_from_modem) - 1));  // Advance the handshake to prime the matching string with "ATE1V0\r"
+    mock_vector_buffer[0] = '0';  // set the mocked ta result code
+    intercepted_xio_on_bytes_received(intercepted_xio_on_bytes_received_context, (const unsigned char *)normalization_response_from_modem, (sizeof(normalization_response_from_modem) - 1));  // Advance the handshake to prime the matching string with "AT&W\r"
+    intercepted_open_result_code = ERROR_3GPP;
+    mock_vector_buffer[0] = '0';  // set the mocked ta result code
+
+    // Expected call listing
+    umock_c_reset_all_calls();
+    for (int i = 0; i < (sizeof("0\r") - 1); ++i) {
+        EXPECTED_CALL(VECTOR_push_back(IGNORED_PTR_ARG, IGNORED_PTR_ARG, IGNORED_NUM_ARG));
+    }
+    EXPECTED_CALL(VECTOR_front(MOCK_VECTOR));
+    EXPECTED_CALL(VECTOR_size(MOCK_VECTOR));
+    EXPECTED_CALL(gballoc_free(IGNORED_PTR_ARG));
+    EXPECTED_CALL(VECTOR_clear(MOCK_VECTOR));
+
+    // Act
+    intercepted_xio_on_bytes_received(intercepted_xio_on_bytes_received_context, (const unsigned char *)bytes_from_modem, (sizeof(bytes_from_modem) - 1));
+
+    // Assert
+    ASSERT_ARE_EQUAL(char_ptr, umock_c_get_expected_calls(), umock_c_get_actual_calls());
+    ASSERT_ARE_EQUAL(int, OK_3GPP, intercepted_open_result_code);
+
+    // Cleanup
+    enable_xio_close_callback = true;
+    enable_xio_send_callback = false;
+    error = atrpc_close(atrpc);
+    ASSERT_ARE_EQUAL(int, 0, error);
+    atrpc_destroy(atrpc);
+}
+
+/* SRS_UARTIO_27_052: [ If `atrpc_open()` has not been called on the `handle` (passed in the callback context), then `on_bytes_received()` shall discard all bytes. ] */
+TEST_FUNCTION(on_bytes_received_SCENARIO_atrpc_not_open)
+{
+    // Arrange
+    int error;
+    const char bytes_from_modem[] = "AT\r0\r\n";
+    ATRPC_HANDLE atrpc = atrpc_create();
+    ASSERT_IS_NOT_NULL(atrpc);
+    error = atrpc_open(atrpc, mock_on_open_response, atrpc);
+    ASSERT_ARE_EQUAL(int, 0, error);
+    enable_xio_close_callback = false;
+    enable_xio_send_callback = true;
+    intercepted_xio_on_io_open_complete(intercepted_xio_on_io_open_context, IO_OPEN_OK);  // call attention and store response callbacks
+    enable_xio_close_callback = true;
+    enable_xio_send_callback = false;
+    error = atrpc_close(atrpc);
+    ASSERT_ARE_EQUAL(int, 0, error);
+
+    // Expected call listing
+    umock_c_reset_all_calls();
+
+    // Act
+    intercepted_xio_on_bytes_received(intercepted_xio_on_bytes_received_context, (const unsigned char *)bytes_from_modem, (sizeof(bytes_from_modem) - 1));
+
+    // Assert
+    ASSERT_ARE_EQUAL(char_ptr, umock_c_get_expected_calls(), umock_c_get_actual_calls());
+
+    // Cleanup
+    atrpc_destroy(atrpc);
+}
+
+/* SRS_UARTIO_27_053: [ If the `on_open_complete()` callback has been called, then `on_bytes_received()` shall capture any bytes following the prefix of the `command_string` parameter passed to `attention()` along with the postfixed `<result code>"\r"`. ] */
+/* SRS_UARTIO_27_054: [ If any bytes where captured, `on_bytes_received()` shall call the `ta_response` callback passed to `attention()` using the `ta_response_context` as the `context` parameter, the captured result code as the `result_code` parameter, and the captured message as the `message` parameter. ] */
+TEST_FUNCTION(on_bytes_received_SCENARIO_parse_response)
+{
+    // Arrange
+    int error;
+    tickcounter_ms_t send_ms = 150;
+    const char bytes_from_modem[] = "RDY\r\n+CFUN: 1\r\nAT+GMM\rSIMCOM_SIM808\r\n0\r\n";
+    const char bytes_to_capture[] = "SIMCOM_SIM808\r\n0\r";
+    const char normalization_response_from_modem[] = "ATE1V0\r0\r\n";
+    const char ping_response_from_modem[] = "AT\r\r\nOK\r\n";
+    const char write_response_from_modem[] = "AT&W\r0\r\n";
+    ATRPC_HANDLE atrpc = atrpc_create();
+    ASSERT_IS_NOT_NULL(atrpc);
+    error = atrpc_open(atrpc, mock_on_open_response, atrpc);
+    ASSERT_ARE_EQUAL(int, 0, error);
+    enable_xio_close_callback = false;
+    enable_xio_send_callback = true;
+    intercepted_xio_on_io_open_complete(intercepted_xio_on_io_open_context, IO_OPEN_OK);  // call attention and store response callbacks
+    mock_vector_buffer[0] = '0';  // set the mocked ta result code
+    intercepted_xio_on_bytes_received(intercepted_xio_on_bytes_received_context, (const unsigned char *)ping_response_from_modem, (sizeof(ping_response_from_modem) - 1));  // Advance the handshake to prime the matching string with "ATE1V0\r"
+    mock_vector_buffer[0] = '0';  // set the mocked ta result code
+    intercepted_xio_on_bytes_received(intercepted_xio_on_bytes_received_context, (const unsigned char *)normalization_response_from_modem, (sizeof(normalization_response_from_modem) - 1));  // Advance the handshake to prime the matching string with "AT&W\r"
+    intercepted_open_result_code = ERROR_3GPP;
+    mock_vector_buffer[0] = '0';  // set the mocked ta result code
+    intercepted_xio_on_bytes_received(intercepted_xio_on_bytes_received_context, (const unsigned char *)write_response_from_modem, (sizeof(write_response_from_modem) - 1));
+    ASSERT_ARE_EQUAL(int, OK_3GPP, intercepted_open_result_code);
+    intercepted_ta_result_code = ERROR_3GPP;
+    mock_vector_buffer[0] = '0';  // set the mocked ta result code
+
+    // Expected call listing
+    umock_c_reset_all_calls();
+    // atrpc_attention() calls
+    EXPECTED_CALL(tickcounter_get_current_ms(IGNORED_PTR_ARG, IGNORED_PTR_ARG))
+        .CopyOutArgumentBuffer(2, &send_ms, sizeof(send_ms))
+        .SetReturn(0);
+    EXPECTED_CALL(gballoc_malloc(IGNORED_NUM_ARG));
+    EXPECTED_CALL(xio_send(IGNORED_PTR_ARG, IGNORED_PTR_ARG, IGNORED_NUM_ARG, IGNORED_PTR_ARG, IGNORED_PTR_ARG));
+    EXPECTED_CALL(xio_dowork(IGNORED_PTR_ARG));
+    // on_bytes_received() calls
+    for (int i = 0; i < (sizeof(bytes_to_capture) - 1); ++i) {
+        STRICT_EXPECTED_CALL(VECTOR_push_back(MOCK_VECTOR, IGNORED_PTR_ARG, 1))
+            .IgnoreArgument(2)
+            .SetReturn(0)
+            .ValidateArgumentBuffer(2, (bytes_to_capture + i), 1);
+    }
+    STRICT_EXPECTED_CALL(VECTOR_front(MOCK_VECTOR))
+        .SetReturn((void *)bytes_to_capture);
+    STRICT_EXPECTED_CALL(VECTOR_size(MOCK_VECTOR))
+        .SetReturn(sizeof(bytes_to_capture) - 1);
+    EXPECTED_CALL(gballoc_free(IGNORED_PTR_ARG));
+    STRICT_EXPECTED_CALL(VECTOR_clear(MOCK_VECTOR));
+
+    // Act
+    atrpc_attention(atrpc, "+GMM", 4, 0, mock_on_ta_response, atrpc);
+    intercepted_xio_on_bytes_received(intercepted_xio_on_bytes_received_context, (const unsigned char *)bytes_from_modem, (sizeof(bytes_from_modem) - 1));
+
+    // Assert
+    ASSERT_ARE_EQUAL(char_ptr, umock_c_get_expected_calls(), umock_c_get_actual_calls());
+    ASSERT_ARE_EQUAL(int, OK_3GPP, intercepted_ta_result_code);
+    ASSERT_ARE_EQUAL(int, 0, strncmp(intercepted_ta_response, "SIMCOM_SIM808\r\n", (sizeof("SIMCOM_SIM808\r\n") - 1)));
+
+    // Cleanup
+    enable_xio_close_callback = true;
+    enable_xio_send_callback = false;
+    error = atrpc_close(atrpc);
+    ASSERT_ARE_EQUAL(int, 0, error);
+    atrpc_destroy(atrpc);
+}
+
+/* SRS_UARTIO_27_055: [ If an error occurs when capturing the bytes, then `on_bytes_received()` shall call the `ta_response` callback passed to `attention()` using the `ta_response_context` as the `context` parameter, the `ERROR_ATRPC` as the `result_code` parameter, and the captured message as the `message` parameter. ] */
+TEST_FUNCTION(on_bytes_received_SCENARIO_parse_response_vector_failure)
+{
+    // Arrange
+    int error;
+    tickcounter_ms_t send_ms = 150;
+    const char bytes_from_modem[] = "RDY\r\n+CFUN: 1\r\nAT+GMM\rSIMCOM_SIM808\r\n0\r\n";
+    const char bytes_to_capture[] = "SIMCOM_SIM808\r\n0\r";
+    const char normalization_response_from_modem[] = "ATE1V0\r0\r\n";
+    const char ping_response_from_modem[] = "AT\r\r\nOK\r\n";
+    const char write_response_from_modem[] = "AT&W\r0\r\n";
+    ATRPC_HANDLE atrpc = atrpc_create();
+    ASSERT_IS_NOT_NULL(atrpc);
+    error = atrpc_open(atrpc, mock_on_open_response, atrpc);
+    ASSERT_ARE_EQUAL(int, 0, error);
+    enable_xio_close_callback = false;
+    enable_xio_send_callback = true;
+    intercepted_xio_on_io_open_complete(intercepted_xio_on_io_open_context, IO_OPEN_OK);  // call attention and store response callbacks
+    mock_vector_buffer[0] = '0';  // set the mocked ta result code
+    intercepted_xio_on_bytes_received(intercepted_xio_on_bytes_received_context, (const unsigned char *)ping_response_from_modem, (sizeof(ping_response_from_modem) - 1));  // Advance the handshake to prime the matching string with "ATE1V0\r"
+    mock_vector_buffer[0] = '0';  // set the mocked ta result code
+    intercepted_xio_on_bytes_received(intercepted_xio_on_bytes_received_context, (const unsigned char *)normalization_response_from_modem, (sizeof(normalization_response_from_modem) - 1));  // Advance the handshake to prime the matching string with "AT&W\r"
+    intercepted_open_result_code = ERROR_3GPP;
+    mock_vector_buffer[0] = '0';  // set the mocked ta result code
+    intercepted_xio_on_bytes_received(intercepted_xio_on_bytes_received_context, (const unsigned char *)write_response_from_modem, (sizeof(write_response_from_modem) - 1));
+    ASSERT_ARE_EQUAL(int, OK_3GPP, intercepted_open_result_code);
+    intercepted_ta_result_code = ERROR_3GPP;
+    mock_vector_buffer[0] = '0';  // set the mocked ta result code
+
+    // Expected call listing
+    umock_c_reset_all_calls();
+    // atrpc_attention() calls
+    EXPECTED_CALL(tickcounter_get_current_ms(IGNORED_PTR_ARG, IGNORED_PTR_ARG))
+        .CopyOutArgumentBuffer(2, &send_ms, sizeof(send_ms))
+        .SetReturn(0);
+    EXPECTED_CALL(gballoc_malloc(IGNORED_NUM_ARG));
+    EXPECTED_CALL(xio_send(IGNORED_PTR_ARG, IGNORED_PTR_ARG, IGNORED_NUM_ARG, IGNORED_PTR_ARG, IGNORED_PTR_ARG));
+    EXPECTED_CALL(xio_dowork(IGNORED_PTR_ARG));
+    // on_bytes_received() calls
+    STRICT_EXPECTED_CALL(VECTOR_push_back(MOCK_VECTOR, IGNORED_PTR_ARG, 1))
+        .IgnoreArgument(2)
+        .SetReturn(__LINE__)
+        .ValidateArgumentBuffer(2, bytes_to_capture, 1);
+    STRICT_EXPECTED_CALL(VECTOR_front(MOCK_VECTOR))
+        .SetReturn((void *)bytes_to_capture);
+    STRICT_EXPECTED_CALL(VECTOR_size(MOCK_VECTOR))
+        .SetReturn(sizeof(bytes_to_capture) - 1);
+    EXPECTED_CALL(gballoc_free(IGNORED_PTR_ARG));
+    STRICT_EXPECTED_CALL(VECTOR_clear(MOCK_VECTOR));
+
+    // Act
+    atrpc_attention(atrpc, "+GMM", 4, 0, mock_on_ta_response, atrpc);
+    intercepted_xio_on_bytes_received(intercepted_xio_on_bytes_received_context, (const unsigned char *)bytes_from_modem, (sizeof(bytes_from_modem) - 1));
+
+    // Assert
+    ASSERT_ARE_EQUAL(char_ptr, umock_c_get_expected_calls(), umock_c_get_actual_calls());
+    ASSERT_ARE_EQUAL(int, ERROR_ATRPC, intercepted_ta_result_code);
+
+    // Cleanup
+    enable_xio_close_callback = true;
+    enable_xio_send_callback = false;
+    error = atrpc_close(atrpc);
+    ASSERT_ARE_EQUAL(int, 0, error);
+    atrpc_destroy(atrpc);
+}
+
+/* SRS_UARTIO_27_067: [ `on_io_close_complete()` shall call nothing. ] */
+TEST_FUNCTION(on_io_close_complete_SCENARIO_success)
+{
+    // Arrange
+    int error;
+    ATRPC_HANDLE atrpc = atrpc_create();
+    ASSERT_IS_NOT_NULL(atrpc);
+    error = atrpc_open(atrpc, mock_on_open_response, atrpc);
+    ASSERT_ARE_EQUAL(int, 0, error);
+    error = atrpc_close(atrpc);
+    ASSERT_ARE_EQUAL(int, 0, error);
+
+    // Expected call listing
+    umock_c_reset_all_calls();
+
+    // Act
+    intercepted_xio_on_io_close_complete(intercepted_xio_on_io_close_context);
+
+    // Assert
+    ASSERT_ARE_EQUAL(char_ptr, umock_c_get_expected_calls(), umock_c_get_actual_calls());
+
+    // Cleanup
+    atrpc_destroy(atrpc);
+}
+
+/* SRS_UARTIO_27_068: [ `on_io_error()` shall free the stored command string. ] */
+/* SRS_UARTIO_27_069: [ `on_io_error()` shall call the terminal adapter response callback passed as `ta_response` to `attention()` using the `ta_response_context` parameter passed to `attention()` as the `context` parameter, `ERROR_ATRPC` as the `result_code` parameter, and `NULL` as the `message` parameter. ] */
+TEST_FUNCTION(on_io_error_SCENARIO_success)
+{
+    // Arrange
+    int error;
+    const char normalization_response_from_modem[] = "ATE1V0\r0\r\n";
+    const char ping_response_from_modem[] = "AT\r\r\nOK\r\n";
+    const char write_response_from_modem[] = "AT&W\r0\r\n";
+    ATRPC_HANDLE atrpc = atrpc_create();
+    ASSERT_IS_NOT_NULL(atrpc);
+    error = atrpc_open(atrpc, mock_on_open_response, atrpc);
+    ASSERT_ARE_EQUAL(int, 0, error);
+    enable_xio_close_callback = false;
+    enable_xio_send_callback = true;
+    intercepted_xio_on_io_open_complete(intercepted_xio_on_io_open_context, IO_OPEN_OK);  // call attention and store response callbacks
+    mock_vector_buffer[0] = '0';  // set the mocked ta result code
+    intercepted_xio_on_bytes_received(intercepted_xio_on_bytes_received_context, (const unsigned char *)ping_response_from_modem, (sizeof(ping_response_from_modem) - 1));  // Advance the handshake to prime the matching string with "ATE1V0\r"
+    mock_vector_buffer[0] = '0';  // set the mocked ta result code
+    intercepted_xio_on_bytes_received(intercepted_xio_on_bytes_received_context, (const unsigned char *)normalization_response_from_modem, (sizeof(normalization_response_from_modem) - 1));  // Advance the handshake to prime the matching string with "AT&W\r"
+    intercepted_open_result_code = ERROR_3GPP;
+    mock_vector_buffer[0] = '0';  // set the mocked ta result code
+    intercepted_xio_on_bytes_received(intercepted_xio_on_bytes_received_context, (const unsigned char *)write_response_from_modem, (sizeof(write_response_from_modem) - 1));
+    ASSERT_ARE_EQUAL(int, OK_3GPP, intercepted_open_result_code);
+    intercepted_ta_result_code = OK_3GPP;
+    error = atrpc_attention(atrpc, "&W", 2, 0, mock_on_ta_response, &atrpc);
+    ASSERT_ARE_EQUAL(int, 0, error);
+    mock_vector_buffer[0] = '0';  // set the mocked ta result code
+    intercepted_ta_result_code = OK_3GPP;
+
+    // Expected call listing
+    umock_c_reset_all_calls();
+    EXPECTED_CALL(gballoc_free(IGNORED_PTR_ARG));
+
+    // Act
+    intercepted_xio_on_io_error(intercepted_xio_on_io_error_context);
+
+    // Assert
+    ASSERT_ARE_EQUAL(char_ptr, umock_c_get_expected_calls(), umock_c_get_actual_calls());
+    ASSERT_ARE_EQUAL(int, ERROR_ATRPC, intercepted_ta_result_code);
+
+    // Cleanup
+    enable_xio_close_callback = true;
+    enable_xio_send_callback = false;
+    error = atrpc_close(atrpc);
+    ASSERT_ARE_EQUAL(int, 0, error);
+    atrpc_destroy(atrpc);
+}
+
+/* SRS_UARTIO_27_071: [ If the `open_result` parameter is `OPEN_OK`, then `on_io_open_complete()` shall initiate the auto-bauding procedure by calling `(void)atrpc_attention(void * context, const char * const command_string, const size_t command_string_length const size_t timeout_ms, TA_RESPONSE const ta_response, const void * const ta_response_context)` using the incoming `context` parameter as the `handle` parameter, `NULL` as the `command_string` parameter, `0` as the `command_string_length` parameter, `250` as the `timeout_ms` parameter, `modem_handshake` as the `ta_response` parameter, and `ta_response_context` as the `context` parameter. ] */
+TEST_FUNCTION(on_io_open_complete_SCENARIO_success)
+{
+    // Arrange
+    int error;
+    ATRPC_HANDLE atrpc = atrpc_create();
+    ASSERT_IS_NOT_NULL(atrpc);
+    error = atrpc_open(atrpc, mock_on_open_response, atrpc);
+    ASSERT_ARE_EQUAL(int, 0, error);
+    enable_xio_close_callback = false;
+    enable_xio_send_callback = true;
+
+    // Expected call listing
+    umock_c_reset_all_calls();
+    EXPECTED_CALL(tickcounter_get_current_ms(IGNORED_PTR_ARG, IGNORED_PTR_ARG))
+        .SetReturn(0);
+    EXPECTED_CALL(gballoc_malloc(IGNORED_NUM_ARG));
+    STRICT_EXPECTED_CALL(xio_send(MOCK_UARTIO, IGNORED_PTR_ARG, 3, IGNORED_PTR_ARG, IGNORED_PTR_ARG))
+        .IgnoreArgument(2)
+        .IgnoreArgument(4)
+        .IgnoreArgument(5)
+        .ValidateArgumentBuffer(2, "AT\r", 3);
+    EXPECTED_CALL(xio_dowork(IGNORED_PTR_ARG));
+
+    // Act
+    intercepted_xio_on_io_open_complete(intercepted_xio_on_io_open_context, IO_OPEN_OK);
+
+    // Assert
+    ASSERT_ARE_EQUAL(char_ptr, umock_c_get_expected_calls(), umock_c_get_actual_calls());
+
+    // Cleanup
+    enable_xio_close_callback = true;
+    enable_xio_send_callback = false;
+    error = atrpc_close(atrpc);
+    ASSERT_ARE_EQUAL(int, 0, error);
+    atrpc_destroy(atrpc);
+}
+
+/* SRS_UARTIO_27_070: [ If the `open_result` parameter is not `IO_OPEN_OK`, then `on_io_open_complete()` shall call the `on_open_complete` callback passed to `atrpc_open()` using the `on_open_complete_context` parameter passed to `atrpc_open()` as the `context` parameter, `ERROR_ATRPC` as the `result_code` parameter, and `NULL` as the `response` parameter. ] */
+TEST_FUNCTION(on_io_open_complete_SCENARIO_xio_error)
+{
+    // Arrange
+    int error;
+    ATRPC_HANDLE atrpc = atrpc_create();
+    ASSERT_IS_NOT_NULL(atrpc);
+    error = atrpc_open(atrpc, mock_on_open_response, atrpc);
+    ASSERT_ARE_EQUAL(int, 0, error);
+    intercepted_open_result_code = OK_3GPP;
+
+    // Expected call listing
+    umock_c_reset_all_calls();
+
+    // Act
+    intercepted_xio_on_io_open_complete(intercepted_xio_on_io_open_context, IO_OPEN_ERROR);
+
+    // Assert
+    ASSERT_ARE_EQUAL(char_ptr, umock_c_get_expected_calls(), umock_c_get_actual_calls());
+    ASSERT_ARE_EQUAL(int, ERROR_ATRPC, intercepted_open_result_code);
+
+    // Cleanup
+    error = atrpc_close(atrpc);
+    ASSERT_ARE_EQUAL(int, 0, error);
+    atrpc_destroy(atrpc);
+}
+
+/* SRS_UARTIO_27_072: [ If `atrpc_attention` returns a non-zero value, then `on_io_open_complete()` shall call the `on_open_complete` callback passed to `atrpc_open()` using the `on_open_complete_context` parameter passed to `atrpc_open()` as the `context` parameter, `ERROR_ATRPC` as the `result_code` parameter, and `NULL` as the `response` parameter. ] */
+TEST_FUNCTION(on_io_open_complete_SCENARIO_attention_fails)
+{
+    // Arrange
+    int error;
+    ATRPC_HANDLE atrpc = atrpc_create();
+    ASSERT_IS_NOT_NULL(atrpc);
+    error = atrpc_open(atrpc, mock_on_open_response, atrpc);
+    ASSERT_ARE_EQUAL(int, 0, error);
+    enable_xio_close_callback = false;
+    enable_xio_send_callback = true;
+    intercepted_open_result_code = OK_3GPP;
+
+    // Expected call listing
+    umock_c_reset_all_calls();
+    EXPECTED_CALL(tickcounter_get_current_ms(IGNORED_PTR_ARG, IGNORED_PTR_ARG))
+        .SetReturn(__LINE__);
+
+    // Act
+    intercepted_xio_on_io_open_complete(intercepted_xio_on_io_open_context, IO_OPEN_OK);
+
+    // Assert
+    ASSERT_ARE_EQUAL(char_ptr, umock_c_get_expected_calls(), umock_c_get_actual_calls());
+    ASSERT_ARE_EQUAL(int, ERROR_ATRPC, intercepted_open_result_code);
+
+    // Cleanup
+    enable_xio_close_callback = true;
+    enable_xio_send_callback = false;
+    error = atrpc_close(atrpc);
+    ASSERT_ARE_EQUAL(int, 0, error);
+    atrpc_destroy(atrpc);
+}
+
+/* SRS_UARTIO_27_073: [ If the result of underlying xio `on_io_send_complete()` is `IO_SEND_OK`, then `on_send_complete()` shall call nothing. ] */
+TEST_FUNCTION(on_send_complete_SCENARIO_io_send_ok)
+{
+    // Arrange
+    int error;
+    ATRPC_HANDLE atrpc = atrpc_create();
+    ASSERT_IS_NOT_NULL(atrpc);
+    error = atrpc_open(atrpc, mock_on_open_response, atrpc);
+    ASSERT_ARE_EQUAL(int, 0, error);
+    enable_xio_close_callback = false;
+    enable_xio_send_callback = true;
+    intercepted_xio_on_io_open_complete(intercepted_xio_on_io_open_context, IO_OPEN_OK); // Allows capture of `on_send_complete`
+
+    // Expected call listing
+    umock_c_reset_all_calls();
+
+    // Act
+    intercepted_xio_on_send_complete(intercepted_xio_on_send_context, IO_SEND_OK);
+    
+    // Assert
+    ASSERT_ARE_EQUAL(char_ptr, umock_c_get_expected_calls(), umock_c_get_actual_calls());
+
+    // Cleanup
+    enable_xio_close_callback = true;
+    enable_xio_send_callback = false;
+    error = atrpc_close(atrpc);
+    ASSERT_ARE_EQUAL(int, 0, error);
+    atrpc_destroy(atrpc);
+}
+
+/* SRS_UARTIO_27_074: [ If the result of underlying xio `on_io_send_complete()` is `IO_SEND_CANCELLED`, then `on_send_complete()` shall call the terminal adapter response callback passed as `ta_response` to `attention()` using the `ta_response_context` parameter passed to `attention()` as the `context` parameter, `ERROR_ATRPC` as the `result_code` parameter, and `NULL` as the `message` parameter. ] */
+/* SRS_UARTIO_27_075: [ If the result of underlying xio `on_io_send_complete()` is not `IO_SEND_OK`, then `on_send_complete()` shall free the command string passed to `attention()`. ] */
+TEST_FUNCTION(on_send_complete_SCENARIO_io_send_cancelled)
+{
+    // Arrange
+    int error;
+    const char normalization_response_from_modem[] = "ATE1V0\r0\r\n";
+    const char ping_response_from_modem[] = "AT\r\r\nOK\r\n";
+    const char write_response_from_modem[] = "AT&W\r0\r\n";
+    ATRPC_HANDLE atrpc = atrpc_create();
+    ASSERT_IS_NOT_NULL(atrpc);
+    error = atrpc_open(atrpc, mock_on_open_response, atrpc);
+    ASSERT_ARE_EQUAL(int, 0, error);
+    enable_xio_close_callback = false;
+    enable_xio_send_callback = true;
+    intercepted_xio_on_io_open_complete(intercepted_xio_on_io_open_context, IO_OPEN_OK);  // call attention and store response callbacks
+    mock_vector_buffer[0] = '0';  // set the mocked ta result code
+    intercepted_xio_on_bytes_received(intercepted_xio_on_bytes_received_context, (const unsigned char *)ping_response_from_modem, (sizeof(ping_response_from_modem) - 1));  // Advance the handshake to prime the matching string with "ATE1V0\r"
+    mock_vector_buffer[0] = '0';  // set the mocked ta result code
+    intercepted_xio_on_bytes_received(intercepted_xio_on_bytes_received_context, (const unsigned char *)normalization_response_from_modem, (sizeof(normalization_response_from_modem) - 1));  // Advance the handshake to prime the matching string with "AT&W\r"
+    intercepted_open_result_code = ERROR_3GPP;
+    mock_vector_buffer[0] = '0';  // set the mocked ta result code
+    intercepted_xio_on_bytes_received(intercepted_xio_on_bytes_received_context, (const unsigned char *)write_response_from_modem, (sizeof(write_response_from_modem) - 1));
+    ASSERT_ARE_EQUAL(int, OK_3GPP, intercepted_open_result_code);
+    intercepted_ta_result_code = OK_3GPP;
+    error = atrpc_attention(atrpc, "&W", 2, 0, mock_on_ta_response, &atrpc);
+    ASSERT_ARE_EQUAL(int, 0, error);
+    mock_vector_buffer[0] = '0';  // set the mocked ta result code
+
+    // Expected call listing
+    umock_c_reset_all_calls();
+    EXPECTED_CALL(gballoc_free(IGNORED_PTR_ARG));
+
+    // Act
+    intercepted_xio_on_send_complete(intercepted_xio_on_send_context, IO_SEND_CANCELLED);
+
+    // Assert
+    ASSERT_ARE_EQUAL(char_ptr, umock_c_get_expected_calls(), umock_c_get_actual_calls());
+    ASSERT_ARE_EQUAL(int, ERROR_ATRPC, intercepted_ta_result_code);
+
+    // Cleanup
+    enable_xio_close_callback = true;
+    enable_xio_send_callback = false;
+    error = atrpc_close(atrpc);
+    ASSERT_ARE_EQUAL(int, 0, error);
+    atrpc_destroy(atrpc);
+}
+
+/* SRS_UARTIO_27_076: [ If the result of underlying xio `on_io_send_complete()` is `IO_SEND_ERROR`, then `on_send_complete()` shall call the terminal adapter response callback passed as `ta_response` to `attention()` using the `ta_response_context` parameter passed to `attention()` as the `context` parameter, `ERROR_ATRPC` as the `result_code` parameter, and `NULL` as the `message` parameter. ] */
+TEST_FUNCTION(on_send_complete_SCENARIO_io_send_error)
+{
+    // Arrange
+    int error;
+    const char normalization_response_from_modem[] = "ATE1V0\r0\r\n";
+    const char ping_response_from_modem[] = "AT\r\r\nOK\r\n";
+    const char write_response_from_modem[] = "AT&W\r0\r\n";
+    ATRPC_HANDLE atrpc = atrpc_create();
+    ASSERT_IS_NOT_NULL(atrpc);
+    error = atrpc_open(atrpc, mock_on_open_response, atrpc);
+    ASSERT_ARE_EQUAL(int, 0, error);
+    enable_xio_close_callback = false;
+    enable_xio_send_callback = true;
+    intercepted_xio_on_io_open_complete(intercepted_xio_on_io_open_context, IO_OPEN_OK);  // call attention and store response callbacks
+    mock_vector_buffer[0] = '0';  // set the mocked ta result code
+    intercepted_xio_on_bytes_received(intercepted_xio_on_bytes_received_context, (const unsigned char *)ping_response_from_modem, (sizeof(ping_response_from_modem) - 1));  // Advance the handshake to prime the matching string with "ATE1V0\r"
+    mock_vector_buffer[0] = '0';  // set the mocked ta result code
+    intercepted_xio_on_bytes_received(intercepted_xio_on_bytes_received_context, (const unsigned char *)normalization_response_from_modem, (sizeof(normalization_response_from_modem) - 1));  // Advance the handshake to prime the matching string with "AT&W\r"
+    intercepted_open_result_code = ERROR_3GPP;
+    mock_vector_buffer[0] = '0';  // set the mocked ta result code
+    intercepted_xio_on_bytes_received(intercepted_xio_on_bytes_received_context, (const unsigned char *)write_response_from_modem, (sizeof(write_response_from_modem) - 1));
+    ASSERT_ARE_EQUAL(int, OK_3GPP, intercepted_open_result_code);
+    intercepted_ta_result_code = OK_3GPP;
+    error = atrpc_attention(atrpc, "&W", 2, 0, mock_on_ta_response, &atrpc);
+    ASSERT_ARE_EQUAL(int, 0, error);
+    mock_vector_buffer[0] = '0';  // set the mocked ta result code
+
+    // Expected call listing
+    umock_c_reset_all_calls();
+    EXPECTED_CALL(gballoc_free(IGNORED_PTR_ARG));
+
+    // Act
+    intercepted_xio_on_send_complete(intercepted_xio_on_send_context, IO_SEND_ERROR);
+
+    // Assert
+    ASSERT_ARE_EQUAL(char_ptr, umock_c_get_expected_calls(), umock_c_get_actual_calls());
+    ASSERT_ARE_EQUAL(int, ERROR_ATRPC, intercepted_ta_result_code);
+
+    // Cleanup
+    enable_xio_close_callback = true;
+    enable_xio_send_callback = false;
+    error = atrpc_close(atrpc);
+    ASSERT_ARE_EQUAL(int, 0, error);
+    atrpc_destroy(atrpc);
+}
 
 END_TEST_SUITE(atrpc_unittests)
 
