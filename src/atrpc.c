@@ -355,59 +355,64 @@ static void modem_on_bytes_received (void * context_, const unsigned char * buff
                         {
                             atrpc->response_buffer[atrpc->ta_response_buffer_index++] = received_byte;
                         }
-                        switch (atrpc->ta_result_code_machine_state)
-                        {
-                          case 0:
-                            if ('\r' == received_byte)
+                        if (NULL != atrpc->ta_result_code_parser) {
+                            /* Codes_SRS_ATRPC_27_081: [ When a CUSTOM_RESULT_CODE_PARSER callback is supplied to attention(), modem_on_bytes_received() shall call the callback with each byte to determine the end of a response instead of searching for a standard result code. ] */
+                            response_complete = atrpc->ta_result_code_parser(atrpc->ta_result_code_parser_context, received_byte, &atrpc->ta_result_code);
+                        } else {
+                            switch (atrpc->ta_result_code_machine_state)
                             {
-                                atrpc->ta_result_code_machine_state = 1;
-                            }
-                            break;
-                          case 1:
-                            // Accept all valid result codes
-                            if (0x35 != received_byte && 0x30 <= received_byte && 0x39 >= received_byte)
-                            {
-                                atrpc->ta_result_code = (TA_RESULT_CODE)(received_byte - 0x30);
-                                atrpc->ta_result_code_machine_state = 2;
-                            }
-                            else if ('\r' == received_byte)
-                            {
-                                /* defer */
-                            }
-                            else if ('\n' == received_byte)
-                            {
-                                atrpc->ta_result_code_machine_state = 3;
-                            }
-                            else
-                            {
+                              case 0:
+                                if ('\r' == received_byte)
+                                {
+                                    atrpc->ta_result_code_machine_state = 1;
+                                }
+                                break;
+                              case 1:
+                                // Accept all valid result codes
+                                if (0x35 != received_byte && 0x30 <= received_byte && 0x39 >= received_byte)
+                                {
+                                    atrpc->ta_result_code = (TA_RESULT_CODE)(received_byte - 0x30);
+                                    atrpc->ta_result_code_machine_state = 2;
+                                }
+                                else if ('\r' == received_byte)
+                                {
+                                    /* defer */
+                                }
+                                else if ('\n' == received_byte)
+                                {
+                                    atrpc->ta_result_code_machine_state = 3;
+                                }
+                                else
+                                {
+                                    atrpc->ta_result_code_machine_state = 0;
+                                }
+                                break;
+                              case 2:
+                                if ('\r' == received_byte)
+                                {
+                                    response_complete = true;
+                                }
                                 atrpc->ta_result_code_machine_state = 0;
+                                break;
+                              case 3:
+                                // Accept all valid result codes
+                                if (0x35 != received_byte && 0x30 <= received_byte && 0x39 >= received_byte)
+                                {
+                                    atrpc->ta_result_code = (TA_RESULT_CODE)(received_byte - 0x30);
+                                    atrpc->ta_result_code_machine_state = 2;
+                                }
+                                else if ('\r' == received_byte)
+                                {
+                                    atrpc->ta_result_code_machine_state = 1;
+                                }
+                                else
+                                {
+                                    atrpc->ta_result_code_machine_state = 0;
+                                }
+                                break;
+                              default:
+                                break;
                             }
-                            break;
-                          case 2:
-                            if ('\r' == received_byte)
-                            {
-                                response_complete = true;
-                            }
-                            atrpc->ta_result_code_machine_state = 0;
-                            break;
-                          case 3:
-                            // Accept all valid result codes
-                            if (0x35 != received_byte && 0x30 <= received_byte && 0x39 >= received_byte)
-                            {
-                                atrpc->ta_result_code = (TA_RESULT_CODE)(received_byte - 0x30);
-                                atrpc->ta_result_code_machine_state = 2;
-                            }
-                            else if ('\r' == received_byte)
-                            {
-                                atrpc->ta_result_code_machine_state = 1;
-                            }
-                            else
-                            {
-                                atrpc->ta_result_code_machine_state = 0;
-                            }
-                            break;
-                          default:
-                            break;
                         }
                     }
                 }

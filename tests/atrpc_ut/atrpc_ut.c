@@ -66,8 +66,6 @@ non_mocked_free(
   #include "azure_c_shared_utility/tickcounter_msp430.h"
   #include "azure_c_shared_utility/uartio.h"
   #include "azure_c_shared_utility/vector.h"
-  MOCKABLE_FUNCTION(, void, mock_on_open_response, void *, context, TA_RESULT_CODE, result_code);
-  MOCKABLE_FUNCTION(, void, mock_on_ta_response, void *, context, TA_RESULT_CODE, result_code, const unsigned char *, response, size_t, response_size);
 #undef ENABLE_MOCKS
 
 #define MOCK_IO_INTERFACE_DESCRIPTION_PTR (const IO_INTERFACE_DESCRIPTION *)0x09171979
@@ -79,10 +77,7 @@ non_mocked_free(
 #endif
 
 static void * mock_tickcounter_memory;
-static void * mock_vector_memory;
 static void * mock_xio_memory;
-static unsigned char mock_vector_buffer[2];
-static size_t mock_vector_size = sizeof(mock_vector_buffer);
 static ON_BYTES_RECEIVED intercepted_xio_on_bytes_received;
 static void * intercepted_xio_on_bytes_received_context;
 static ON_IO_CLOSE_COMPLETE intercepted_xio_on_io_close_complete;
@@ -201,8 +196,46 @@ mock_xio_send(
 
 #define ENABLE_MOCKS
   // define free mocked function(s) and enum type(s) (platform, external libraries, etc.)
-  TEST_DEFINE_ENUM_TYPE(IO_OPEN_RESULT, IO_OPEN_RESULT_VALUES);
-  IMPLEMENT_UMOCK_C_ENUM_TYPE(IO_OPEN_RESULT, IO_OPEN_RESULT_VALUES);
+  MOCKABLE_FUNCTION(, void, mock_on_open_response, void *, context, TA_RESULT_CODE, result_code);
+  MOCKABLE_FUNCTION(, void, mock_on_ta_response, void *, context, TA_RESULT_CODE, result_code, const unsigned char *, response, size_t, response_size);
+
+  MOCK_FUNCTION_WITH_CODE(, int, mock_custom_ta_result_code_parser, void *, context_, unsigned char, input_, TA_RESULT_CODE *, ta_result_code_)
+      static size_t machine_state = 0;
+      int response_complete = false;
+      *ta_result_code_ = ERROR_ATRPC;
+
+      switch (machine_state) {
+        case 0:
+          machine_state += ( 'S' == input_ );
+          break;
+        case 1:
+          machine_state += ( 'H' == input_ );
+          break;
+        case 2:
+          machine_state += ( 'U' == input_ );
+          break;
+        case 3:
+          machine_state += ( 'T' == input_ );
+          break;
+        case 4:
+          machine_state += ( ' ' == input_ );
+          break;
+        case 5:
+          machine_state += ( 'O' == input_ );
+          break;
+        case 6:
+          machine_state += ( 'K' == input_ );
+          break;
+        case 7:
+          machine_state += ( '\r' == input_ );
+          break;
+        case 8:
+          response_complete = ('\n' == input_);
+          *ta_result_code_ = OK_3GPP;
+          machine_state = 0;
+          break;
+      }
+  MOCK_FUNCTION_END(response_complete);
 #undef ENABLE_MOCKS
 
 DEFINE_ENUM_STRINGS(UMOCK_C_ERROR_CODE, UMOCK_C_ERROR_CODE_VALUES)
@@ -232,6 +265,7 @@ TEST_SUITE_INITIALIZE(suite_init)
     ASSERT_ARE_EQUAL(int, 0, result);
 
     REGISTER_UMOCK_ALIAS_TYPE(bool, char);
+    REGISTER_UMOCK_ALIAS_TYPE(CUSTOM_TA_RESULT_CODE_PARSER, void *);
     REGISTER_UMOCK_ALIAS_TYPE(ON_BYTES_RECEIVED, void *);
     REGISTER_UMOCK_ALIAS_TYPE(ON_IO_CLOSE_COMPLETE, void *);
     REGISTER_UMOCK_ALIAS_TYPE(ON_IO_ERROR, void *);
@@ -293,13 +327,9 @@ TEST_FUNCTION(attention_SCENARIO_success)
     error = atrpc_open(atrpc, mock_on_open_response, atrpc);
     ASSERT_ARE_EQUAL(int, 0, error);
     intercepted_xio_on_io_open_complete(intercepted_xio_on_io_open_context, IO_OPEN_OK);  // call attention and store response callbacks
-    mock_vector_buffer[0] = '0';  // set the mocked ta result code
     intercepted_xio_on_bytes_received(intercepted_xio_on_bytes_received_context, (const unsigned char *)ping_response_from_modem, (sizeof(ping_response_from_modem) - 1));  // Advance the handshake to prime the matching string with "ATE1V0\r"
-    mock_vector_buffer[0] = '0';  // set the mocked ta result code
     intercepted_xio_on_bytes_received(intercepted_xio_on_bytes_received_context, (const unsigned char *)normalization_response_from_modem, (sizeof(normalization_response_from_modem) - 1));  // Advance the handshake to prime the matching string with "AT&W\r"
-    mock_vector_buffer[0] = '0';  // set the mocked ta result code
     intercepted_xio_on_bytes_received(intercepted_xio_on_bytes_received_context, (const unsigned char *)write_response_from_modem, (sizeof(write_response_from_modem) - 1));
-    mock_vector_buffer[0] = '0';  // set the mocked ta result code
 
     // Expected call listing
     umock_c_reset_all_calls();
@@ -314,7 +344,7 @@ TEST_FUNCTION(attention_SCENARIO_success)
         .ValidateArgumentBuffer(2, at_command, (sizeof(at_command) - 1));
 
     // Act
-    error = atrpc_attention(atrpc, (const unsigned char *)"&W", 2, 100, NULL, 0, mock_on_ta_response, &atrpc, NULL, NULL);
+    error = atrpc_attention(atrpc, (const unsigned char *)"&W", (sizeof("&W") - 1), 100, NULL, 0, mock_on_ta_response, &atrpc, NULL, NULL);
 
     // Assert
     ASSERT_ARE_EQUAL(char_ptr, umock_c_get_expected_calls(), umock_c_get_actual_calls());
@@ -349,13 +379,9 @@ TEST_FUNCTION(attention_SCENARIO_negative_tests)
     error = atrpc_open(atrpc, mock_on_open_response, atrpc);
     ASSERT_ARE_EQUAL(int, 0, error);
     intercepted_xio_on_io_open_complete(intercepted_xio_on_io_open_context, IO_OPEN_OK);  // call attention and store response callbacks
-    mock_vector_buffer[0] = '0';  // set the mocked ta result code
     intercepted_xio_on_bytes_received(intercepted_xio_on_bytes_received_context, (const unsigned char *)ping_response_from_modem, (sizeof(ping_response_from_modem) - 1));  // Advance the handshake to prime the matching string with "ATE1V0\r"
-    mock_vector_buffer[0] = '0';  // set the mocked ta result code
     intercepted_xio_on_bytes_received(intercepted_xio_on_bytes_received_context, (const unsigned char *)normalization_response_from_modem, (sizeof(normalization_response_from_modem) - 1));  // Advance the handshake to prime the matching string with "AT&W\r"
-    mock_vector_buffer[0] = '0';  // set the mocked ta result code
     intercepted_xio_on_bytes_received(intercepted_xio_on_bytes_received_context, (const unsigned char *)write_response_from_modem, (sizeof(write_response_from_modem) - 1));
-    mock_vector_buffer[0] = '0';  // set the mocked ta result code
 
     // Expected call listing
     umock_c_reset_all_calls();
@@ -383,7 +409,7 @@ TEST_FUNCTION(attention_SCENARIO_negative_tests)
         umock_c_negative_tests_fail_call(i);
 
         // Act
-        error = atrpc_attention(atrpc, (const unsigned char *)"&W", 2, 100, NULL, 0, mock_on_ta_response, &atrpc, NULL, NULL);
+        error = atrpc_attention(atrpc, (const unsigned char *)"&W", (sizeof("&W") - 1), 100, NULL, 0, mock_on_ta_response, &atrpc, NULL, NULL);
 
         // Assert
         ASSERT_ARE_NOT_EQUAL(int, 0, error);
@@ -411,7 +437,7 @@ TEST_FUNCTION(attention_SCENARIO_NULL_handle)
     umock_c_reset_all_calls();
 
     // Act
-    error = atrpc_attention(NULL, (const unsigned char *)"&W", 2, 100, NULL, 0, mock_on_ta_response, &atrpc, NULL, NULL);
+    error = atrpc_attention(NULL, (const unsigned char *)"&W", (sizeof("&W") - 1), 100, NULL, 0, mock_on_ta_response, &atrpc, NULL, NULL);
 
     // Assert
     ASSERT_ARE_EQUAL(char_ptr, umock_c_get_expected_calls(), umock_c_get_actual_calls());
@@ -437,7 +463,7 @@ TEST_FUNCTION(attention_SCENARIO_NULL_on_ta_response)
     umock_c_reset_all_calls();
 
     // Act
-    error = atrpc_attention(atrpc, (const unsigned char *)"&W", 2, 100, NULL, 0, NULL, &atrpc, NULL, NULL);
+    error = atrpc_attention(atrpc, (const unsigned char *)"&W", (sizeof("&W") - 1), 100, NULL, 0, NULL, &atrpc, NULL, NULL);
 
     // Assert
     ASSERT_ARE_EQUAL(char_ptr, umock_c_get_expected_calls(), umock_c_get_actual_calls());
@@ -449,7 +475,7 @@ TEST_FUNCTION(attention_SCENARIO_NULL_on_ta_response)
     atrpc_destroy(atrpc);
 }
 
-/* Tests_SRS_ATRPC_27_085: [ If `command_string_length` is not zero and `command_string` is `NULL`, then `atrpc_attention()` shall fail and return a non-zero value. ] */
+/* Tests_SRS_ATRPC_27_085: [ If command_string_length is not zero and command_string is NULL, then atrpc_attention() shall fail and return a non-zero value. ] */
 TEST_FUNCTION(attention_SCENARIO_command_string_mismatch)
 {
     // Arrange
@@ -462,11 +488,8 @@ TEST_FUNCTION(attention_SCENARIO_command_string_mismatch)
     error = atrpc_open(atrpc, mock_on_open_response, atrpc);
     ASSERT_ARE_EQUAL(int, 0, error);
     intercepted_xio_on_io_open_complete(intercepted_xio_on_io_open_context, IO_OPEN_OK);  // call attention and store response callbacks
-    mock_vector_buffer[0] = '0';  // set the mocked ta result code
     intercepted_xio_on_bytes_received(intercepted_xio_on_bytes_received_context, (const unsigned char *)ping_response_from_modem, (sizeof(ping_response_from_modem) - 1));  // Advance the handshake to prime the matching string with "ATE1V0\r"
-    mock_vector_buffer[0] = '0';  // set the mocked ta result code
     intercepted_xio_on_bytes_received(intercepted_xio_on_bytes_received_context, (const unsigned char *)normalization_response_from_modem, (sizeof(normalization_response_from_modem) - 1));  // Advance the handshake to prime the matching string with "AT&W\r"
-    mock_vector_buffer[0] = '0';  // set the mocked ta result code
     intercepted_xio_on_bytes_received(intercepted_xio_on_bytes_received_context, (const unsigned char *)write_response_from_modem, (sizeof(write_response_from_modem) - 1));
 
     // Expected call listing
@@ -483,7 +506,7 @@ TEST_FUNCTION(attention_SCENARIO_command_string_mismatch)
     atrpc_destroy(atrpc);
 }
 
-/* Codes_SRS_ATRPC_27_086: [ If `ta_response_buffer_size` is not zero and `response_buffer` is not `NULL`, then `atrpc_attention()` shall fail and return a non-zero value. ] */
+/* Tests_SRS_ATRPC_27_086: [ If ta_response_buffer_size is not zero and response_buffer is not NULL, then atrpc_attention() shall fail and return a non-zero value. ] */
 TEST_FUNCTION(attention_SCENARIO_response_string_mismatch)
 {
     // Arrange
@@ -496,11 +519,8 @@ TEST_FUNCTION(attention_SCENARIO_response_string_mismatch)
     error = atrpc_open(atrpc, mock_on_open_response, atrpc);
     ASSERT_ARE_EQUAL(int, 0, error);
     intercepted_xio_on_io_open_complete(intercepted_xio_on_io_open_context, IO_OPEN_OK);  // call attention and store response callbacks
-    mock_vector_buffer[0] = '0';  // set the mocked ta result code
     intercepted_xio_on_bytes_received(intercepted_xio_on_bytes_received_context, (const unsigned char *)ping_response_from_modem, (sizeof(ping_response_from_modem) - 1));  // Advance the handshake to prime the matching string with "ATE1V0\r"
-    mock_vector_buffer[0] = '0';  // set the mocked ta result code
     intercepted_xio_on_bytes_received(intercepted_xio_on_bytes_received_context, (const unsigned char *)normalization_response_from_modem, (sizeof(normalization_response_from_modem) - 1));  // Advance the handshake to prime the matching string with "AT&W\r"
-    mock_vector_buffer[0] = '0';  // set the mocked ta result code
     intercepted_xio_on_bytes_received(intercepted_xio_on_bytes_received_context, (const unsigned char *)write_response_from_modem, (sizeof(write_response_from_modem) - 1));
 
     // Expected call listing
@@ -529,7 +549,7 @@ TEST_FUNCTION(attention_SCENARIO_handle_not_open)
     umock_c_reset_all_calls();
 
     // Act
-    error = atrpc_attention(atrpc, (const unsigned char *)"&W", 2, 100, NULL, 0, mock_on_ta_response, &atrpc, NULL, NULL);
+    error = atrpc_attention(atrpc, (const unsigned char *)"&W", (sizeof("&W") - 1), 100, NULL, 0, mock_on_ta_response, &atrpc, NULL, NULL);
 
     // Assert
     ASSERT_ARE_EQUAL(char_ptr, umock_c_get_expected_calls(), umock_c_get_actual_calls());
@@ -552,21 +572,17 @@ TEST_FUNCTION(attention_SCENARIO_request_outstanding)
     error = atrpc_open(atrpc, mock_on_open_response, atrpc);
     ASSERT_ARE_EQUAL(int, 0, error);
     intercepted_xio_on_io_open_complete(intercepted_xio_on_io_open_context, IO_OPEN_OK);  // call attention and store response callbacks
-    mock_vector_buffer[0] = '0';  // set the mocked ta result code
     intercepted_xio_on_bytes_received(intercepted_xio_on_bytes_received_context, (const unsigned char *)ping_response_from_modem, (sizeof(ping_response_from_modem) - 1));  // Advance the handshake to prime the matching string with "ATE1V0\r"
-    mock_vector_buffer[0] = '0';  // set the mocked ta result code
     intercepted_xio_on_bytes_received(intercepted_xio_on_bytes_received_context, (const unsigned char *)normalization_response_from_modem, (sizeof(normalization_response_from_modem) - 1));  // Advance the handshake to prime the matching string with "AT&W\r"
-    mock_vector_buffer[0] = '0';  // set the mocked ta result code
     intercepted_xio_on_bytes_received(intercepted_xio_on_bytes_received_context, (const unsigned char *)write_response_from_modem, (sizeof(write_response_from_modem) - 1));
-    error = atrpc_attention(atrpc, (const unsigned char *)"&W", 2, 0, NULL, 0, mock_on_ta_response, &atrpc, NULL, NULL);
+    error = atrpc_attention(atrpc, (const unsigned char *)"&W", (sizeof("&W") - 1), 0, NULL, 0, mock_on_ta_response, &atrpc, NULL, NULL);
     ASSERT_ARE_EQUAL(int, 0, error);
-    mock_vector_buffer[0] = '0';  // set the mocked ta result code
 
     // Expected call listing
     umock_c_reset_all_calls();
 
     // Act
-    error = atrpc_attention(atrpc, (const unsigned char *)"&W", 2, 0, NULL, 0, mock_on_ta_response, &atrpc, NULL, NULL);
+    error = atrpc_attention(atrpc, (const unsigned char *)"&W", (sizeof("&W") - 1), 0, NULL, 0, mock_on_ta_response, &atrpc, NULL, NULL);
 
     // Assert
     ASSERT_ARE_EQUAL(char_ptr, umock_c_get_expected_calls(), umock_c_get_actual_calls());
@@ -593,11 +609,8 @@ TEST_FUNCTION(close_SCENARIO_success)
     error = atrpc_open(atrpc, mock_on_open_response, atrpc);
     ASSERT_ARE_EQUAL(int, 0, error);
     intercepted_xio_on_io_open_complete(intercepted_xio_on_io_open_context, IO_OPEN_OK);  // call attention and store response callbacks
-    mock_vector_buffer[0] = '0';  // set the mocked ta result code
     intercepted_xio_on_bytes_received(intercepted_xio_on_bytes_received_context, (const unsigned char *)ping_response_from_modem, (sizeof(ping_response_from_modem) - 1));  // Advance the handshake to prime the matching string with "ATE1V0\r"
-    mock_vector_buffer[0] = '0';  // set the mocked ta result code
     intercepted_xio_on_bytes_received(intercepted_xio_on_bytes_received_context, (const unsigned char *)normalization_response_from_modem, (sizeof(normalization_response_from_modem) - 1));  // Advance the handshake to prime the matching string with "AT&W\r"
-    mock_vector_buffer[0] = '0';  // set the mocked ta result code
     intercepted_xio_on_bytes_received(intercepted_xio_on_bytes_received_context, (const unsigned char *)write_response_from_modem, (sizeof(write_response_from_modem) - 1));
 
     // Expected call listing
@@ -927,7 +940,7 @@ TEST_FUNCTION(dowork_SCENARIO_handle_open_response_timeout) {
     EXPECTED_CALL(gballoc_malloc(IGNORED_NUM_ARG));
     STRICT_EXPECTED_CALL(xio_send(MOCK_UARTIO, IGNORED_PTR_ARG, 3, IGNORED_PTR_ARG, atrpc))
         .IgnoreArgument(4)
-        .ValidateArgumentBuffer(2, "AT\r", 3);  // Confirms `ERROR_ATRPC` was passed to on_ta_response
+        .ValidateArgumentBuffer(2, "AT\r", (sizeof("AT\r") - 1));  // Confirms ERROR_ATRPC was passed to on_ta_response
 
     // Act
     intercepted_xio_on_io_open_complete(intercepted_xio_on_io_open_context, IO_OPEN_OK);  // Initiate the handshake procedure
@@ -963,7 +976,7 @@ TEST_FUNCTION(dowork_SCENARIO_open_timeout_fails) {
         .IgnoreArgument(2)
         .IgnoreArgument(4)
         .IgnoreArgument(5)
-        .ValidateArgumentBuffer(2, "AT\r", 3);
+        .ValidateArgumentBuffer(2, "AT\r", (sizeof("AT\r") - 1));
     // atrpc_dowork() calls
     STRICT_EXPECTED_CALL(xio_dowork(MOCK_UARTIO));
     STRICT_EXPECTED_CALL(tickcounter_get_current_ms(MOCK_TICKCOUNTER, IGNORED_PTR_ARG))
@@ -998,13 +1011,9 @@ TEST_FUNCTION(dowork_SCENARIO_open_no_timeout)
     error = atrpc_open(atrpc, mock_on_open_response, atrpc);
     ASSERT_ARE_EQUAL(int, 0, error);
     intercepted_xio_on_io_open_complete(intercepted_xio_on_io_open_context, IO_OPEN_OK);  // call attention and store response callbacks
-    mock_vector_buffer[0] = '0';  // set the mocked ta result code
     intercepted_xio_on_bytes_received(intercepted_xio_on_bytes_received_context, (const unsigned char *)ping_response_from_modem, (sizeof(ping_response_from_modem) - 1));  // Advance the handshake to prime the matching string with "ATE1V0\r"
-    mock_vector_buffer[0] = '0';  // set the mocked ta result code
     intercepted_xio_on_bytes_received(intercepted_xio_on_bytes_received_context, (const unsigned char *)normalization_response_from_modem, (sizeof(normalization_response_from_modem) - 1));  // Advance the handshake to prime the matching string with "AT&W\r"
-    mock_vector_buffer[0] = '0';  // set the mocked ta result code
     intercepted_xio_on_bytes_received(intercepted_xio_on_bytes_received_context, (const unsigned char *)bytes_from_modem, (sizeof(bytes_from_modem) - 1));
-    mock_vector_buffer[0] = '0';  // set the mocked ta result code
 
     // Expected call listing
     umock_c_reset_all_calls();
@@ -1241,7 +1250,7 @@ TEST_FUNCTION(modem_on_bytes_received_SCENARIO_handshake_auto_baud_timeout)
         .IgnoreArgument(2)
         .IgnoreArgument(4)
         .IgnoreArgument(5)
-        .ValidateArgumentBuffer(2, "AT\r", 3);
+        .ValidateArgumentBuffer(2, "AT\r", (sizeof("AT\r") - 1));
     // atrpc_dowork() calls
     STRICT_EXPECTED_CALL(xio_dowork(MOCK_UARTIO));
     STRICT_EXPECTED_CALL(tickcounter_get_current_ms(MOCK_TICKCOUNTER, IGNORED_PTR_ARG))
@@ -1257,7 +1266,7 @@ TEST_FUNCTION(modem_on_bytes_received_SCENARIO_handshake_auto_baud_timeout)
         .IgnoreArgument(2)
         .IgnoreArgument(4)
         .IgnoreArgument(5)
-        .ValidateArgumentBuffer(2, "AT\r", 3);
+        .ValidateArgumentBuffer(2, "AT\r", (sizeof("AT\r") - 1));
 
     // Act
     intercepted_xio_on_io_open_complete(intercepted_xio_on_io_open_context, IO_OPEN_OK); // Begins handshake
@@ -1294,7 +1303,7 @@ TEST_FUNCTION(modem_on_bytes_received_SCENARIO_handshake_auto_baud_resend_failur
         .IgnoreArgument(2)
         .IgnoreArgument(4)
         .IgnoreArgument(5)
-        .ValidateArgumentBuffer(2, "AT\r", 3);
+        .ValidateArgumentBuffer(2, "AT\r", (sizeof("AT\r") - 1));
     // atrpc_dowork() calls
     STRICT_EXPECTED_CALL(xio_dowork(MOCK_UARTIO));
     STRICT_EXPECTED_CALL(tickcounter_get_current_ms(MOCK_TICKCOUNTER, IGNORED_PTR_ARG))
@@ -1311,7 +1320,7 @@ TEST_FUNCTION(modem_on_bytes_received_SCENARIO_handshake_auto_baud_resend_failur
         .IgnoreArgument(4)
         .IgnoreArgument(5)
         .SetReturn(__LINE__)
-        .ValidateArgumentBuffer(2, "AT\r", 3);
+        .ValidateArgumentBuffer(2, "AT\r", (sizeof("AT\r") - 1));
     EXPECTED_CALL(gballoc_free(IGNORED_PTR_ARG));
     EXPECTED_CALL(mock_on_open_response(atrpc, ERROR_ATRPC));
 
@@ -1370,7 +1379,7 @@ TEST_FUNCTION(modem_on_bytes_received_SCENARIO_handshake_max_timeouts)
                 .IgnoreArgument(2)
                 .IgnoreArgument(4)
                 .IgnoreArgument(5)
-                .ValidateArgumentBuffer(2, "AT\r", 3);
+                .ValidateArgumentBuffer(2, "AT\r", (sizeof("AT\r") - 1));
         }
     }
     STRICT_EXPECTED_CALL(mock_on_open_response(atrpc, ERROR_ATRPC));
@@ -1378,7 +1387,6 @@ TEST_FUNCTION(modem_on_bytes_received_SCENARIO_handshake_max_timeouts)
     // Act
     intercepted_xio_on_io_open_complete(intercepted_xio_on_io_open_context, IO_OPEN_OK); // Begins handshake
     for (int i = 0; i < MAX_ATTEMPTS; ++i) {
-        mock_vector_buffer[0] = '0';  // set the mocked ta result code
         atrpc_dowork(atrpc);
     }
 
@@ -1404,7 +1412,6 @@ TEST_FUNCTION(modem_on_bytes_received_SCENARIO_handshake_auto_baud_success)
     error = atrpc_open(atrpc, mock_on_open_response, atrpc);
     ASSERT_ARE_EQUAL(int, 0, error);
     intercepted_xio_on_io_open_complete(intercepted_xio_on_io_open_context, IO_OPEN_OK);  // call attention and store response callbacks
-    mock_vector_buffer[0] = '0';  // set the mocked ta result code
 
     // Expected call listing
     umock_c_reset_all_calls();
@@ -1418,7 +1425,7 @@ TEST_FUNCTION(modem_on_bytes_received_SCENARIO_handshake_auto_baud_success)
         .IgnoreArgument(2)
         .IgnoreArgument(4)
         .IgnoreArgument(5)
-        .ValidateArgumentBuffer(2, "ATE1V0\r", 7);
+        .ValidateArgumentBuffer(2, "ATE1V0\r", (sizeof("ATE1V0\r") - 1));
 
     // Act
     intercepted_xio_on_bytes_received(intercepted_xio_on_bytes_received_context, (const unsigned char *)bytes_from_modem, (sizeof(bytes_from_modem) - 1));
@@ -1443,7 +1450,6 @@ TEST_FUNCTION(modem_on_bytes_received_SCENARIO_handshake_verbose_auto_baud_succe
     error = atrpc_open(atrpc, mock_on_open_response, atrpc);
     ASSERT_ARE_EQUAL(int, 0, error);
     intercepted_xio_on_io_open_complete(intercepted_xio_on_io_open_context, IO_OPEN_OK);  // call attention and store response callbacks
-    mock_vector_buffer[0] = '0';  // set the mocked ta result code
 
     // Expected call listing
     umock_c_reset_all_calls();
@@ -1457,7 +1463,7 @@ TEST_FUNCTION(modem_on_bytes_received_SCENARIO_handshake_verbose_auto_baud_succe
         .IgnoreArgument(2)
         .IgnoreArgument(4)
         .IgnoreArgument(5)
-        .ValidateArgumentBuffer(2, "ATE1V0\r", 7);
+        .ValidateArgumentBuffer(2, "ATE1V0\r", (sizeof("ATE1V0\r") - 1));
 
     // Act
     intercepted_xio_on_bytes_received(intercepted_xio_on_bytes_received_context, (const unsigned char *)bytes_from_modem, (sizeof(bytes_from_modem) - 1));
@@ -1482,7 +1488,6 @@ TEST_FUNCTION(modem_on_bytes_received_SCENARIO_handshake_normalization_failure)
     error = atrpc_open(atrpc, mock_on_open_response, atrpc);
     ASSERT_ARE_EQUAL(int, 0, error);
     intercepted_xio_on_io_open_complete(intercepted_xio_on_io_open_context, IO_OPEN_OK);  // call attention and store response callbacks
-    mock_vector_buffer[0] = '0';  // set the mocked ta result code
 
     // Expected call listing
     umock_c_reset_all_calls();
@@ -1497,7 +1502,7 @@ TEST_FUNCTION(modem_on_bytes_received_SCENARIO_handshake_normalization_failure)
         .IgnoreArgument(4)
         .IgnoreArgument(5)
         .SetReturn(__LINE__)
-        .ValidateArgumentBuffer(2, "ATE1V0\r", 7);
+        .ValidateArgumentBuffer(2, "ATE1V0\r", (sizeof("ATE1V0\r") - 1));
     EXPECTED_CALL(gballoc_free(IGNORED_PTR_ARG));
     STRICT_EXPECTED_CALL(mock_on_open_response(atrpc, ERROR_ATRPC));
 
@@ -1525,9 +1530,7 @@ TEST_FUNCTION(modem_on_bytes_received_SCENARIO_handshake_normalization_success)
     error = atrpc_open(atrpc, mock_on_open_response, atrpc);
     ASSERT_ARE_EQUAL(int, 0, error);
     intercepted_xio_on_io_open_complete(intercepted_xio_on_io_open_context, IO_OPEN_OK);  // call attention and store response callbacks
-    mock_vector_buffer[0] = '0';  // set the mocked ta result code
     intercepted_xio_on_bytes_received(intercepted_xio_on_bytes_received_context, (const unsigned char *)ping_response_from_modem, (sizeof(ping_response_from_modem) - 1));  // Advance the handshake to prime the matching string with "ATE1V0\r"
-    mock_vector_buffer[0] = '0';  // set the mocked ta result code
 
     // Expected call listing
     umock_c_reset_all_calls();
@@ -1541,7 +1544,7 @@ TEST_FUNCTION(modem_on_bytes_received_SCENARIO_handshake_normalization_success)
         .IgnoreArgument(2)
         .IgnoreArgument(4)
         .IgnoreArgument(5)
-        .ValidateArgumentBuffer(2, "AT&W\r", 5);
+        .ValidateArgumentBuffer(2, "AT&W\r", (sizeof("AT&W\r") - 1));
 
     // Act
     intercepted_xio_on_bytes_received(intercepted_xio_on_bytes_received_context, (const unsigned char *)bytes_from_modem, (sizeof(bytes_from_modem) - 1));
@@ -1567,9 +1570,7 @@ TEST_FUNCTION(modem_on_bytes_received_SCENARIO_handshake_write_profile_failure)
     error = atrpc_open(atrpc, mock_on_open_response, atrpc);
     ASSERT_ARE_EQUAL(int, 0, error);
     intercepted_xio_on_io_open_complete(intercepted_xio_on_io_open_context, IO_OPEN_OK);  // call attention and store response callbacks
-    mock_vector_buffer[0] = '0';  // set the mocked ta result code
     intercepted_xio_on_bytes_received(intercepted_xio_on_bytes_received_context, (const unsigned char *)ping_response_from_modem, (sizeof(ping_response_from_modem) - 1));  // Advance the handshake to prime the matching string with "ATE1V0\r"
-    mock_vector_buffer[0] = '0';  // set the mocked ta result code
 
     // Expected call listing
     umock_c_reset_all_calls();
@@ -1584,7 +1585,7 @@ TEST_FUNCTION(modem_on_bytes_received_SCENARIO_handshake_write_profile_failure)
         .IgnoreArgument(4)
         .IgnoreArgument(5)
         .SetReturn(__LINE__)
-        .ValidateArgumentBuffer(2, "AT&W\r", 5);
+        .ValidateArgumentBuffer(2, "AT&W\r", (sizeof("AT&W\r") - 1));
     EXPECTED_CALL(gballoc_free(IGNORED_PTR_ARG));
     STRICT_EXPECTED_CALL(mock_on_open_response(atrpc, ERROR_ATRPC));
 
@@ -1613,11 +1614,8 @@ TEST_FUNCTION(modem_on_bytes_received_SCENARIO_handshake_complete)
     error = atrpc_open(atrpc, mock_on_open_response, atrpc);
     ASSERT_ARE_EQUAL(int, 0, error);
     intercepted_xio_on_io_open_complete(intercepted_xio_on_io_open_context, IO_OPEN_OK);  // call attention and store response callbacks
-    mock_vector_buffer[0] = '0';  // set the mocked ta result code
     intercepted_xio_on_bytes_received(intercepted_xio_on_bytes_received_context, (const unsigned char *)ping_response_from_modem, (sizeof(ping_response_from_modem) - 1));  // Advance the handshake to prime the matching string with "ATE1V0\r"
-    mock_vector_buffer[0] = '0';  // set the mocked ta result code
     intercepted_xio_on_bytes_received(intercepted_xio_on_bytes_received_context, (const unsigned char *)normalization_response_from_modem, (sizeof(normalization_response_from_modem) - 1));  // Advance the handshake to prime the matching string with "AT&W\r"
-    mock_vector_buffer[0] = '0';  // set the mocked ta result code
 
     // Expected call listing
     umock_c_reset_all_calls();
@@ -1669,7 +1667,6 @@ TEST_FUNCTION(modem_on_bytes_received_SCENARIO_parse_response)
 {
     // Arrange
     int error;
-    tickcounter_ms_t send_ms = 150;
     const char bytes_from_modem[] = "RDY\r\n+CFUN: 1\r\nAT+GMM\rSIMCOM_SIM808\r\n0\r\n";
     unsigned char bytes_to_capture[(sizeof("SIMCOM_SIM808\r\n0\r") - 1)];
     const char normalization_response_from_modem[] = "ATE1V0\r0\r\n";
@@ -1680,30 +1677,19 @@ TEST_FUNCTION(modem_on_bytes_received_SCENARIO_parse_response)
     error = atrpc_open(atrpc, mock_on_open_response, atrpc);
     ASSERT_ARE_EQUAL(int, 0, error);
     intercepted_xio_on_io_open_complete(intercepted_xio_on_io_open_context, IO_OPEN_OK);  // call attention and store response callbacks
-    mock_vector_buffer[0] = '0';  // set the mocked ta result code
     intercepted_xio_on_bytes_received(intercepted_xio_on_bytes_received_context, (const unsigned char *)ping_response_from_modem, (sizeof(ping_response_from_modem) - 1));  // Advance the handshake to prime the matching string with "ATE1V0\r"
-    mock_vector_buffer[0] = '0';  // set the mocked ta result code
     intercepted_xio_on_bytes_received(intercepted_xio_on_bytes_received_context, (const unsigned char *)normalization_response_from_modem, (sizeof(normalization_response_from_modem) - 1));  // Advance the handshake to prime the matching string with "AT&W\r"
-    mock_vector_buffer[0] = '0';  // set the mocked ta result code
     intercepted_xio_on_bytes_received(intercepted_xio_on_bytes_received_context, (const unsigned char *)write_response_from_modem, (sizeof(write_response_from_modem) - 1));
-    mock_vector_buffer[0] = '0';  // set the mocked ta result code
+    error = atrpc_attention(atrpc, (const unsigned char *)"+GMM", (sizeof("+GMM") - 1), 0, bytes_to_capture, sizeof(bytes_to_capture), mock_on_ta_response, atrpc, NULL, NULL);
+    ASSERT_ARE_EQUAL(int, 0, error);
 
     // Expected call listing
     umock_c_reset_all_calls();
-    // atrpc_attention() calls
-    EXPECTED_CALL(tickcounter_get_current_ms(IGNORED_PTR_ARG, IGNORED_PTR_ARG))
-        .CopyOutArgumentBuffer(2, &send_ms, sizeof(send_ms))
-        .SetReturn(0);
-    EXPECTED_CALL(gballoc_malloc(IGNORED_NUM_ARG));
-    EXPECTED_CALL(xio_send(IGNORED_PTR_ARG, IGNORED_PTR_ARG, IGNORED_NUM_ARG, IGNORED_PTR_ARG, IGNORED_PTR_ARG));
-    // modem_on_bytes_received() calls
     EXPECTED_CALL(gballoc_free(IGNORED_PTR_ARG));
     STRICT_EXPECTED_CALL(mock_on_ta_response(atrpc, OK_3GPP, bytes_to_capture, sizeof(bytes_to_capture)))
         .ValidateArgumentBuffer(3, "SIMCOM_SIM808\r\n0\r", (sizeof("SIMCOM_SIM808\r\n0\r") - 1));
 
     // Act
-    error = atrpc_attention(atrpc, (const unsigned char *)"+GMM", 4, 0, bytes_to_capture, sizeof(bytes_to_capture), mock_on_ta_response, atrpc, NULL, NULL);
-    ASSERT_ARE_EQUAL(int, 0, error);
     intercepted_xio_on_bytes_received(intercepted_xio_on_bytes_received_context, (const unsigned char *)bytes_from_modem, (sizeof(bytes_from_modem) - 1));
 
     // Assert
@@ -1715,12 +1701,11 @@ TEST_FUNCTION(modem_on_bytes_received_SCENARIO_parse_response)
     atrpc_destroy(atrpc);
 }
 
-/* Tests_SRS_ATRPC_27_080: [ If more bytes where captured than can fit in the supplied, `modem_on_bytes_received()` shall fill the buffer(discarding the remaining bytes) and call the `ta_response` callback passed to `attention()` using the `ta_response_context` as the `context` parameter, the captured result code as the `result_code` parameter, a pointer to the buffer as the `message` parameter, and the size of the received message as size. ] */
+/* Tests_SRS_ATRPC_27_080: [ If more bytes where captured than can fit in the supplied, modem_on_bytes_received() shall fill the buffer(discarding the remaining bytes) and call the ta_response callback passed to attention() using the ta_response_context as the context parameter, the captured result code as the result_code parameter, a pointer to the buffer as the message parameter, and the size of the received message as size. ] */
 TEST_FUNCTION(modem_on_bytes_received_SCENARIO_parse_partial_response)
 {
     // Arrange
     int error;
-    tickcounter_ms_t send_ms = 150;
     const char bytes_from_modem[] = "RDY\r\n+CFUN: 1\r\nAT+GMM\rSIMCOM_SIM808\r\n0\r\n";
     unsigned char bytes_to_capture[(sizeof("SIMCOM_S") - 1)];
     const char normalization_response_from_modem[] = "ATE1V0\r0\r\n";
@@ -1731,30 +1716,64 @@ TEST_FUNCTION(modem_on_bytes_received_SCENARIO_parse_partial_response)
     error = atrpc_open(atrpc, mock_on_open_response, atrpc);
     ASSERT_ARE_EQUAL(int, 0, error);
     intercepted_xio_on_io_open_complete(intercepted_xio_on_io_open_context, IO_OPEN_OK);  // call attention and store response callbacks
-    mock_vector_buffer[0] = '0';  // set the mocked ta result code
     intercepted_xio_on_bytes_received(intercepted_xio_on_bytes_received_context, (const unsigned char *)ping_response_from_modem, (sizeof(ping_response_from_modem) - 1));  // Advance the handshake to prime the matching string with "ATE1V0\r"
-    mock_vector_buffer[0] = '0';  // set the mocked ta result code
     intercepted_xio_on_bytes_received(intercepted_xio_on_bytes_received_context, (const unsigned char *)normalization_response_from_modem, (sizeof(normalization_response_from_modem) - 1));  // Advance the handshake to prime the matching string with "AT&W\r"
-    mock_vector_buffer[0] = '0';  // set the mocked ta result code
     intercepted_xio_on_bytes_received(intercepted_xio_on_bytes_received_context, (const unsigned char *)write_response_from_modem, (sizeof(write_response_from_modem) - 1));
-    mock_vector_buffer[0] = '0';  // set the mocked ta result code
+    error = atrpc_attention(atrpc, (const unsigned char *)"+GMM", (sizeof("+GMM") - 1), 0, bytes_to_capture, sizeof(bytes_to_capture), mock_on_ta_response, atrpc, NULL, NULL);
+    ASSERT_ARE_EQUAL(int, 0, error);
 
     // Expected call listing
     umock_c_reset_all_calls();
-    // atrpc_attention() calls
-    EXPECTED_CALL(tickcounter_get_current_ms(IGNORED_PTR_ARG, IGNORED_PTR_ARG))
-        .CopyOutArgumentBuffer(2, &send_ms, sizeof(send_ms))
-        .SetReturn(0);
-    EXPECTED_CALL(gballoc_malloc(IGNORED_NUM_ARG));
-    EXPECTED_CALL(xio_send(IGNORED_PTR_ARG, IGNORED_PTR_ARG, IGNORED_NUM_ARG, IGNORED_PTR_ARG, IGNORED_PTR_ARG));
-    // modem_on_bytes_received() calls
     EXPECTED_CALL(gballoc_free(IGNORED_PTR_ARG));
     STRICT_EXPECTED_CALL(mock_on_ta_response(atrpc, OK_3GPP, bytes_to_capture, sizeof(bytes_to_capture)))
         .ValidateArgumentBuffer(3, "SIMCOM_S", (sizeof("SIMCOM_S") - 1));
 
     // Act
-    error = atrpc_attention(atrpc, (const unsigned char *)"+GMM", 4, 0, bytes_to_capture, sizeof(bytes_to_capture), mock_on_ta_response, atrpc, NULL, NULL);
+    intercepted_xio_on_bytes_received(intercepted_xio_on_bytes_received_context, (const unsigned char *)bytes_from_modem, (sizeof(bytes_from_modem) - 1));
+
+    // Assert
+    ASSERT_ARE_EQUAL(char_ptr, umock_c_get_expected_calls(), umock_c_get_actual_calls());
+
+    // Cleanup
+    error = atrpc_close(atrpc);
     ASSERT_ARE_EQUAL(int, 0, error);
+    atrpc_destroy(atrpc);
+}
+
+/* Tests_SRS_ATRPC_27_081: [ When a CUSTOM_RESULT_CODE_PARSER callback is supplied to attention(), modem_on_bytes_received() shall call the callback with each byte to determine the end of a response instead of searching for a standard result code. ] */
+/* Tests_SRS_ATRPC_27_082: [ When the CUSTOM_RESULT_CODE_PARSER callback indicates completion by returning a non-zero value, modem_on_bytes_received() shall return the result code value supplied by the callback as the result code sent to the ON_TA_RESULT callback. ] */
+TEST_FUNCTION(modem_on_bytes_received_SCENARIO_custom_response_parser)
+{
+    // Arrange
+    int error;
+    unsigned char bytes_for_custom_processing[] = "0\r\nSHUT OK\r\n";
+    const char bytes_from_modem[] = "RDY\r\n+CFUN: 1\r\nAT+CIPSHUT\r0\r\nSHUT OK\r\n0\r\n";
+    unsigned char bytes_to_capture[(sizeof("0\r\nSHUT OK\r\n") - 1)];
+    const char normalization_response_from_modem[] = "ATE1V0\r0\r\n";
+    const char ping_response_from_modem[] = "AT\r\r\nOK\r\n";
+    const char write_response_from_modem[] = "AT&W\r0\r\n";
+    ATRPC_HANDLE atrpc = atrpc_create();
+    ASSERT_IS_NOT_NULL(atrpc);
+    error = atrpc_open(atrpc, mock_on_open_response, atrpc);
+    ASSERT_ARE_EQUAL(int, 0, error);
+    intercepted_xio_on_io_open_complete(intercepted_xio_on_io_open_context, IO_OPEN_OK);  // call attention and store response callbacks
+    intercepted_xio_on_bytes_received(intercepted_xio_on_bytes_received_context, (const unsigned char *)ping_response_from_modem, (sizeof(ping_response_from_modem) - 1));  // Advance the handshake to prime the matching string with "ATE1V0\r"
+    intercepted_xio_on_bytes_received(intercepted_xio_on_bytes_received_context, (const unsigned char *)normalization_response_from_modem, (sizeof(normalization_response_from_modem) - 1));  // Advance the handshake to prime the matching string with "AT&W\r"
+    intercepted_xio_on_bytes_received(intercepted_xio_on_bytes_received_context, (const unsigned char *)write_response_from_modem, (sizeof(write_response_from_modem) - 1));
+    error = atrpc_attention(atrpc, (const unsigned char *)"+CIPSHUT", (sizeof("+CIPSHUT") - 1), 0, bytes_to_capture, sizeof(bytes_to_capture), mock_on_ta_response, atrpc, mock_custom_ta_result_code_parser, atrpc);
+    ASSERT_ARE_EQUAL(int, 0, error);
+
+    // Expected call listing
+    umock_c_reset_all_calls();
+    for (size_t i = 0; i < (sizeof(bytes_for_custom_processing) - 1); ++i) {
+        STRICT_EXPECTED_CALL(mock_custom_ta_result_code_parser(atrpc, bytes_for_custom_processing[i], IGNORED_PTR_ARG))
+            .IgnoreArgument(3);
+    }
+    EXPECTED_CALL(gballoc_free(IGNORED_PTR_ARG));
+    STRICT_EXPECTED_CALL(mock_on_ta_response(atrpc, OK_3GPP, bytes_to_capture, sizeof(bytes_to_capture)))
+        .ValidateArgumentBuffer(3, "0\r\nSHUT OK\r\n", (sizeof("0\r\nSHUT OK\r\n") - 1));
+
+    // Act
     intercepted_xio_on_bytes_received(intercepted_xio_on_bytes_received_context, (const unsigned char *)bytes_from_modem, (sizeof(bytes_from_modem) - 1));
 
     // Assert
@@ -1805,15 +1824,11 @@ TEST_FUNCTION(on_io_error_SCENARIO_success)
     error = atrpc_open(atrpc, mock_on_open_response, atrpc);
     ASSERT_ARE_EQUAL(int, 0, error);
     intercepted_xio_on_io_open_complete(intercepted_xio_on_io_open_context, IO_OPEN_OK);  // call attention and store response callbacks
-    mock_vector_buffer[0] = '0';  // set the mocked ta result code
     intercepted_xio_on_bytes_received(intercepted_xio_on_bytes_received_context, (const unsigned char *)ping_response_from_modem, (sizeof(ping_response_from_modem) - 1));  // Advance the handshake to prime the matching string with "ATE1V0\r"
-    mock_vector_buffer[0] = '0';  // set the mocked ta result code
     intercepted_xio_on_bytes_received(intercepted_xio_on_bytes_received_context, (const unsigned char *)normalization_response_from_modem, (sizeof(normalization_response_from_modem) - 1));  // Advance the handshake to prime the matching string with "AT&W\r"
-    mock_vector_buffer[0] = '0';  // set the mocked ta result code
     intercepted_xio_on_bytes_received(intercepted_xio_on_bytes_received_context, (const unsigned char *)write_response_from_modem, (sizeof(write_response_from_modem) - 1));
-    error = atrpc_attention(atrpc, (const unsigned char *)"&W", 2, 0, NULL, 0, mock_on_ta_response, atrpc, NULL, NULL);
+    error = atrpc_attention(atrpc, (const unsigned char *)"&W", (sizeof("&W") - 1), 0, NULL, 0, mock_on_ta_response, atrpc, NULL, NULL);
     ASSERT_ARE_EQUAL(int, 0, error);
-    mock_vector_buffer[0] = '0';  // set the mocked ta result code
 
     // Expected call listing
     umock_c_reset_all_calls();
@@ -1851,7 +1866,7 @@ TEST_FUNCTION(on_io_open_complete_SCENARIO_success)
         .IgnoreArgument(2)
         .IgnoreArgument(4)
         .IgnoreArgument(5)
-        .ValidateArgumentBuffer(2, "AT\r", 3);
+        .ValidateArgumentBuffer(2, "AT\r", (sizeof("AT\r") - 1));
 
     // Act
     intercepted_xio_on_io_open_complete(intercepted_xio_on_io_open_context, IO_OPEN_OK);
@@ -1959,15 +1974,11 @@ TEST_FUNCTION(on_send_complete_SCENARIO_io_send_cancelled)
     error = atrpc_open(atrpc, mock_on_open_response, atrpc);
     ASSERT_ARE_EQUAL(int, 0, error);
     intercepted_xio_on_io_open_complete(intercepted_xio_on_io_open_context, IO_OPEN_OK);  // call attention and store response callbacks
-    mock_vector_buffer[0] = '0';  // set the mocked ta result code
     intercepted_xio_on_bytes_received(intercepted_xio_on_bytes_received_context, (const unsigned char *)ping_response_from_modem, (sizeof(ping_response_from_modem) - 1));  // Advance the handshake to prime the matching string with "ATE1V0\r"
-    mock_vector_buffer[0] = '0';  // set the mocked ta result code
     intercepted_xio_on_bytes_received(intercepted_xio_on_bytes_received_context, (const unsigned char *)normalization_response_from_modem, (sizeof(normalization_response_from_modem) - 1));  // Advance the handshake to prime the matching string with "AT&W\r"
-    mock_vector_buffer[0] = '0';  // set the mocked ta result code
     intercepted_xio_on_bytes_received(intercepted_xio_on_bytes_received_context, (const unsigned char *)write_response_from_modem, (sizeof(write_response_from_modem) - 1));
-    error = atrpc_attention(atrpc, (const unsigned char *)"&W", 2, 0, NULL, 0, mock_on_ta_response, atrpc, NULL, NULL);
+    error = atrpc_attention(atrpc, (const unsigned char *)"&W", (sizeof("&W") - 1), 0, NULL, 0, mock_on_ta_response, atrpc, NULL, NULL);
     ASSERT_ARE_EQUAL(int, 0, error);
-    mock_vector_buffer[0] = '0';  // set the mocked ta result code
 
     // Expected call listing
     umock_c_reset_all_calls();
@@ -1999,15 +2010,11 @@ TEST_FUNCTION(on_send_complete_SCENARIO_io_send_error)
     error = atrpc_open(atrpc, mock_on_open_response, atrpc);
     ASSERT_ARE_EQUAL(int, 0, error);
     intercepted_xio_on_io_open_complete(intercepted_xio_on_io_open_context, IO_OPEN_OK);  // call attention and store response callbacks
-    mock_vector_buffer[0] = '0';  // set the mocked ta result code
     intercepted_xio_on_bytes_received(intercepted_xio_on_bytes_received_context, (const unsigned char *)ping_response_from_modem, (sizeof(ping_response_from_modem) - 1));  // Advance the handshake to prime the matching string with "ATE1V0\r"
-    mock_vector_buffer[0] = '0';  // set the mocked ta result code
     intercepted_xio_on_bytes_received(intercepted_xio_on_bytes_received_context, (const unsigned char *)normalization_response_from_modem, (sizeof(normalization_response_from_modem) - 1));  // Advance the handshake to prime the matching string with "AT&W\r"
-    mock_vector_buffer[0] = '0';  // set the mocked ta result code
     intercepted_xio_on_bytes_received(intercepted_xio_on_bytes_received_context, (const unsigned char *)write_response_from_modem, (sizeof(write_response_from_modem) - 1));
-    error = atrpc_attention(atrpc, (const unsigned char *)"&W", 2, 0, NULL, 0, mock_on_ta_response, atrpc, NULL, NULL);
+    error = atrpc_attention(atrpc, (const unsigned char *)"&W", (sizeof("&W") - 1), 0, NULL, 0, mock_on_ta_response, atrpc, NULL, NULL);
     ASSERT_ARE_EQUAL(int, 0, error);
-    mock_vector_buffer[0] = '0';  // set the mocked ta result code
 
     // Expected call listing
     umock_c_reset_all_calls();
