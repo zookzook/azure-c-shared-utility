@@ -26,12 +26,13 @@ typedef struct ATRPC_INSTANCE_TAG * ATRPC_HANDLE;
 
 DEFINE_ENUM(TA_RESULT_CODE, TA_RESULT_CODE_VALUES);
 
+typedef int(*CUSTOM_TA_RESULT_CODE_PARSER)(void * context, unsigned char input, TA_RESULT_CODE * result_code);
 typedef void(*ON_OPEN_COMPLETE)(void * context, TA_RESULT_CODE result_code);
-typedef void(*ON_TA_RESPONSE)(void * context, TA_RESULT_CODE result_code, const char * response);
+typedef void(*ON_TA_RESPONSE)(void * context, TA_RESULT_CODE result_code, const unsigned char * ta_response, size_t ta_response_size);
 
 #include "azure_c_shared_utility/umock_c_prod.h"
 
-MOCKABLE_FUNCTION(, int, atrpc_attention, ATRPC_HANDLE, handle, const unsigned char *, command_string, size_t, command_string_length, size_t, timeout_ms, ON_TA_RESPONSE, on_ta_response, void *, ta_response_context);
+MOCKABLE_FUNCTION(, int, atrpc_attention, ATRPC_HANDLE, handle, const unsigned char *, command_string, size_t, command_string_length, size_t, timeout_ms, unsigned char *, ta_response_buffer, size_t, ta_response_buffer_size, ON_TA_RESPONSE, on_ta_response, void *, ta_response_context, CUSTOM_TA_RESULT_CODE_PARSER, result_code_parser, void *, result_code_parser_context);
 MOCKABLE_FUNCTION(, int, atrpc_close, ATRPC_HANDLE, handle);
 MOCKABLE_FUNCTION(, ATRPC_HANDLE, atrpc_create);
 MOCKABLE_FUNCTION(, void, atrpc_destroy, ATRPC_HANDLE, handle);
