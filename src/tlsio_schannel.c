@@ -731,6 +731,7 @@ CONCRETE_IO_HANDLE tlsio_schannel_create(void* io_create_parameters)
             result->on_io_error_context = NULL;
             result->credential_handle_allocated = false;
             result->x509_schannel_handle = NULL;
+            result->socket_io = tls_io_config->underlying_io;
 
 			result->host_name = (SEC_TCHAR*)malloc(sizeof(SEC_TCHAR) * (1 + strlen(tls_io_config->hostname)));
 			
@@ -756,7 +757,11 @@ CONCRETE_IO_HANDLE tlsio_schannel_create(void* io_create_parameters)
                 }
                 else
                 {
-                    result->socket_io = xio_create(socket_io_interface, &socketio_config);
+                    if (result->socket_io == NULL)
+                    {
+                        result->socket_io = xio_create(socket_io_interface, &socketio_config);
+                    }
+
                     if (result->socket_io == NULL)
                     {
                         free(result->host_name);

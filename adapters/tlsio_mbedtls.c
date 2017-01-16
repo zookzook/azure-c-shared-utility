@@ -401,7 +401,12 @@ CONCRETE_IO_HANDLE tlsio_mbedtls_create(void* io_create_parameters)
             }
             else
             {
-                result->socket_io = xio_create(socket_io_interface, &socketio_config);
+                result->socket_io = tls_io_config->underlying_io;
+                if (result->socket_io == NULL)
+                {
+                    result->socket_io = xio_create(socket_io_interface, &socketio_config);
+                }
+
                 if (result->socket_io == NULL)
                 {
                     LogError("socket xio create failed");

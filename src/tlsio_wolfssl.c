@@ -546,7 +546,12 @@ CONCRETE_IO_HANDLE tlsio_wolfssl_create(void* io_create_parameters)
                     socketio_config.port = result->port;
                     socketio_config.accepted_socket = NULL;
 
-                    result->socket_io = xio_create(socket_io_interface, &socketio_config);
+                    result->socket_io = tls_io_config->underlying_io;
+                    if (result->socket_io == NULL)
+                    {
+                        result->socket_io = xio_create(socket_io_interface, &socketio_config);
+                    }
+                    
                     if (result->socket_io == NULL)
                     {
                         LogError("Failure connecting to underlying socket_io");

@@ -17,6 +17,7 @@
 #include "azure_c_shared_utility/tlsio.h"
 #include "azure_c_shared_utility/threadapi.h"
 #include "azure_c_shared_utility/shared_util_options.h"
+#include "azure_c_shared_utility/http_proxy_io.h"
 #include <string.h>
 #include <limits.h>
 
@@ -43,10 +44,15 @@ DEFINE_ENUM_STRINGS(HTTPAPI_RESULT, HTTPAPI_RESULT_VALUES)
 
 typedef struct HTTP_HANDLE_DATA_TAG
 {
+    char*           host_name;
     char*           certificate;
     char*           x509ClientCertificate;
     char*           x509ClientPrivateKey;
     XIO_HANDLE      xio_handle;
+    char*           proxy_host_name;
+    int             proxy_port;
+    char*           proxy_user_name;
+    char*           proxy_password;
     size_t          received_bytes_count;
     unsigned char*  received_bytes;
     unsigned int    is_io_error : 1;
@@ -196,7 +202,6 @@ void HTTPAPI_Deinit(void)
 HTTP_HANDLE HTTPAPI_CreateConnection(const char* hostName)
 {
     HTTP_HANDLE_DATA* http_instance;
-    TLSIO_CONFIG tlsio_config;
 
     if (hostName == NULL)
     {
@@ -220,20 +225,15 @@ HTTP_HANDLE HTTPAPI_CreateConnection(const char* hostName)
         }
         else
         {
-            tlsio_config.hostname = hostName;
-            tlsio_config.port = 443;
-
-            http_instance->xio_handle = xio_create(platform_get_default_tlsio(), (void*)&tlsio_config);
-
-            /*Codes_SRS_HTTPAPI_COMPACT_21_016: [ If the HTTPAPI_CreateConnection failed to create the connection, it shall return NULL as the handle. ]*/
-            if (http_instance->xio_handle == NULL)
+            if (mallocAndStrcpy_s(&http_instance->host_name, hostName) != 0)
             {
-                LogError("Create connection failed");
+                LogError("Cannot copy host name.");
                 free(http_instance);
                 http_instance = NULL;
             }
             else
             {
+                http_instance->xio_handle = NULL;
                 http_instance->is_connected = 0;
                 http_instance->is_io_error = 0;
                 http_instance->received_bytes_count = 0;
@@ -241,6 +241,10 @@ HTTP_HANDLE HTTPAPI_CreateConnection(const char* hostName)
                 http_instance->certificate = NULL;
                 http_instance->x509ClientCertificate = NULL;
                 http_instance->x509ClientPrivateKey = NULL;
+                http_instance->proxy_host_name = NULL;
+                http_instance->proxy_port = 0;
+                http_instance->proxy_user_name = NULL;
+                http_instance->proxy_password = NULL;
             }
         }
     }
@@ -324,6 +328,22 @@ void HTTPAPI_CloseConnection(HTTP_HANDLE handle)
         {
             free(http_instance->x509ClientPrivateKey);
         }
+
+        if (http_instance->proxy_host_name != NULL)
+        {
+            free(http_instance->proxy_host_name);
+        }
+
+        if (http_instance->proxy_user_name != NULL)
+        {
+            free(http_instance->proxy_user_name);
+        }
+
+        if (http_instance->proxy_password != NULL)
+        {
+            free(http_instance->proxy_password);
+        }
+
         free(http_instance);
     }
 }
@@ -697,62 +717,106 @@ static HTTPAPI_RESULT OpenXIOConnection(HTTP_HANDLE_DATA* http_instance)
     }
     else
     {
+        XIO_HANDLE proxy_io_handle;
+        TLSIO_CONFIG tlsio_config;
+        HTTP_PROXY_IO_CONFIG http_proxy_io_config;
+
+        http_proxy_io_config.host_name = http_instance->host_name;
+        http_proxy_io_config.port = 443;
+        http_proxy_io_config.proxy_host_name = http_instance->proxy_host_name;
+        http_proxy_io_config.proxy_port = http_instance->proxy_port;
+        http_proxy_io_config.user_name = http_instance->proxy_user_name;
+        http_proxy_io_config.password = http_instance->proxy_password;
+
         http_instance->is_io_error = 0;
 
-        /*Codes_SRS_HTTPAPI_COMPACT_21_022: [ If a Certificate was provided, the HTTPAPI_ExecuteRequest shall set this option on the transport layer. ]*/
-        if ((http_instance->certificate != NULL) &&
-            (xio_setoption(http_instance->xio_handle, "TrustedCerts", http_instance->certificate) != 0))
+        if (http_instance->proxy_host_name != NULL)
         {
-            /*Codes_SRS_HTTPAPI_COMPACT_21_023: [ If the transport failed setting the Certificate, the HTTPAPI_ExecuteRequest shall not send any request and return HTTPAPI_SET_OPTION_FAILED. ]*/
-            result = HTTPAPI_SET_OPTION_FAILED;
-            LogInfo("Could not load certificate");
-        }
-        /*Codes_SRS_HTTPAPI_COMPACT_06_003: [ If the x509 client certificate is provided, the HTTPAPI_ExecuteRequest shall set this option on the transport layer. ]*/
-        else if ((http_instance->x509ClientCertificate != NULL) &&
-            (xio_setoption(http_instance->xio_handle, SU_OPTION_X509_CERT, http_instance->x509ClientCertificate) != 0))
-        {
-            /*Codes_SRS_HTTPAPI_COMPACT_06_005: [ If the transport failed setting the client certificate, the HTTPAPI_ExecuteRequest shall not send any request and return HTTPAPI_SET_OPTION_FAILED. ]*/
-            result = HTTPAPI_SET_OPTION_FAILED;
-            LogInfo("Could not load the client certificate");
-        }
-        else if ((http_instance->x509ClientPrivateKey != NULL) &&
-            (xio_setoption(http_instance->xio_handle, SU_OPTION_X509_PRIVATE_KEY, http_instance->x509ClientPrivateKey) != 0))
-        {
-
-            /*Codes_SRS_HTTPAPI_COMPACT_06_006: [ If the transport failed setting the client certificate private key, the HTTPAPI_ExecuteRequest shall not send any request and return HTTPAPI_SET_OPTION_FAILED. ] */
-            result = HTTPAPI_SET_OPTION_FAILED;
-            LogInfo("Could not load the client certificate private key");
+            proxy_io_handle = xio_create(http_proxy_io_get_interface_description(), (void*)&http_proxy_io_config);
         }
         else
         {
-            /*Codes_SRS_HTTPAPI_COMPACT_21_024: [ The HTTPAPI_ExecuteRequest shall open the transport connection with the host to send the request. ]*/
-            if (xio_open(http_instance->xio_handle, on_io_open_complete, http_instance, on_bytes_received, http_instance, on_io_error, http_instance) != 0)
+            proxy_io_handle = NULL;
+        }
+
+        if ((http_instance->proxy_host_name != NULL) && (proxy_io_handle == NULL))
+        {
+            result = HTTPAPI_OPEN_REQUEST_FAILED;
+            LogError("Cannot create unerlying HTTP Proxy IO");
+        }
+        else
+        {
+            tlsio_config.hostname = http_instance->host_name;
+            tlsio_config.port = 443;
+            tlsio_config.underlying_io = proxy_io_handle;
+
+            http_instance->xio_handle = xio_create(platform_get_default_tlsio(), (void*)&tlsio_config);
+
+            /*Codes_SRS_HTTPAPI_COMPACT_21_016: [ If the HTTPAPI_CreateConnection failed to create the connection, it shall return NULL as the handle. ]*/
+            if (http_instance->xio_handle == NULL)
             {
-                /*Codes_SRS_HTTPAPI_COMPACT_21_025: [ If the open process failed, the HTTPAPI_ExecuteRequest shall not send any request and return HTTPAPI_OPEN_REQUEST_FAILED. ]*/
+                xio_destroy(proxy_io_handle);
                 result = HTTPAPI_OPEN_REQUEST_FAILED;
+                LogError("Cannot create unerlying TLS IO");
             }
             else
             {
-                /*Codes_SRS_HTTPAPI_COMPACT_21_033: [ If the whole process succeed, the HTTPAPI_ExecuteRequest shall retur HTTPAPI_OK. ]*/
-                result = HTTPAPI_OK;
-                /*Codes_SRS_HTTPAPI_COMPACT_21_077: [ The HTTPAPI_ExecuteRequest shall wait, at least, 10 seconds for the SSL open process. ]*/
-                int countRetry = MAX_OPEN_RETRY;
-                while ((http_instance->is_connected == 0) &&
-                    (http_instance->is_io_error == 0))
+                /*Codes_SRS_HTTPAPI_COMPACT_21_022: [ If a Certificate was provided, the HTTPAPI_ExecuteRequest shall set this option on the transport layer. ]*/
+                if ((http_instance->certificate != NULL) &&
+                    (xio_setoption(http_instance->xio_handle, "TrustedCerts", http_instance->certificate) != 0))
                 {
-                    xio_dowork(http_instance->xio_handle);
-                    LogInfo("Waiting for TLS connection");
-                    if ((countRetry--) < 0)
+                    /*Codes_SRS_HTTPAPI_COMPACT_21_023: [ If the transport failed setting the Certificate, the HTTPAPI_ExecuteRequest shall not send any request and return HTTPAPI_SET_OPTION_FAILED. ]*/
+                    result = HTTPAPI_SET_OPTION_FAILED;
+                    LogInfo("Could not load certificate");
+                }
+                /*Codes_SRS_HTTPAPI_COMPACT_06_003: [ If the x509 client certificate is provided, the HTTPAPI_ExecuteRequest shall set this option on the transport layer. ]*/
+                else if ((http_instance->x509ClientCertificate != NULL) &&
+                    (xio_setoption(http_instance->xio_handle, SU_OPTION_X509_CERT, http_instance->x509ClientCertificate) != 0))
+                {
+                    /*Codes_SRS_HTTPAPI_COMPACT_06_005: [ If the transport failed setting the client certificate, the HTTPAPI_ExecuteRequest shall not send any request and return HTTPAPI_SET_OPTION_FAILED. ]*/
+                    result = HTTPAPI_SET_OPTION_FAILED;
+                    LogInfo("Could not load the client certificate");
+                }
+                else if ((http_instance->x509ClientPrivateKey != NULL) &&
+                    (xio_setoption(http_instance->xio_handle, SU_OPTION_X509_PRIVATE_KEY, http_instance->x509ClientPrivateKey) != 0))
+                {
+
+                    /*Codes_SRS_HTTPAPI_COMPACT_06_006: [ If the transport failed setting the client certificate private key, the HTTPAPI_ExecuteRequest shall not send any request and return HTTPAPI_SET_OPTION_FAILED. ] */
+                    result = HTTPAPI_SET_OPTION_FAILED;
+                    LogInfo("Could not load the client certificate private key");
+                }
+                else
+                {
+                    /*Codes_SRS_HTTPAPI_COMPACT_21_024: [ The HTTPAPI_ExecuteRequest shall open the transport connection with the host to send the request. ]*/
+                    if (xio_open(http_instance->xio_handle, on_io_open_complete, http_instance, on_bytes_received, http_instance, on_io_error, http_instance) != 0)
                     {
-                        /*Codes_SRS_HTTPAPI_COMPACT_21_078: [ If the HTTPAPI_ExecuteRequest cannot open the connection in 10 seconds, it shall fail and return HTTPAPI_OPEN_REQUEST_FAILED. ]*/
-                        LogError("Open timeout. The HTTP request is incomplete");
+                        /*Codes_SRS_HTTPAPI_COMPACT_21_025: [ If the open process failed, the HTTPAPI_ExecuteRequest shall not send any request and return HTTPAPI_OPEN_REQUEST_FAILED. ]*/
                         result = HTTPAPI_OPEN_REQUEST_FAILED;
-                        break;
                     }
                     else
                     {
-                        /*Codes_SRS_HTTPAPI_COMPACT_21_083: [ The HTTPAPI_ExecuteRequest shall wait, at least, 100 milliseconds between retries. ]*/
-                        ThreadAPI_Sleep(RETRY_INTERVAL_IN_MICROSECONDS);
+                        /*Codes_SRS_HTTPAPI_COMPACT_21_033: [ If the whole process succeed, the HTTPAPI_ExecuteRequest shall retur HTTPAPI_OK. ]*/
+                        result = HTTPAPI_OK;
+                        /*Codes_SRS_HTTPAPI_COMPACT_21_077: [ The HTTPAPI_ExecuteRequest shall wait, at least, 10 seconds for the SSL open process. ]*/
+                        int countRetry = MAX_OPEN_RETRY;
+                        while ((http_instance->is_connected == 0) &&
+                            (http_instance->is_io_error == 0))
+                        {
+                            xio_dowork(http_instance->xio_handle);
+                            LogInfo("Waiting for TLS connection");
+                            if ((countRetry--) < 0)
+                            {
+                                /*Codes_SRS_HTTPAPI_COMPACT_21_078: [ If the HTTPAPI_ExecuteRequest cannot open the connection in 10 seconds, it shall fail and return HTTPAPI_OPEN_REQUEST_FAILED. ]*/
+                                LogError("Open timeout. The HTTP request is incomplete");
+                                result = HTTPAPI_OPEN_REQUEST_FAILED;
+                                break;
+                            }
+                            else
+                            {
+                                /*Codes_SRS_HTTPAPI_COMPACT_21_083: [ The HTTPAPI_ExecuteRequest shall wait, at least, 100 milliseconds between retries. ]*/
+                                ThreadAPI_Sleep(RETRY_INTERVAL_IN_MICROSECONDS);
+                            }
+                        }
                     }
                 }
             }
@@ -1276,6 +1340,60 @@ HTTPAPI_RESULT HTTPAPI_SetOption(HTTP_HANDLE handle, const char* optionName, con
             result = HTTPAPI_OK;
         }
     }
+    else if (strcmp(OPTION_HTTP_PROXY, optionName) == 0)
+    {
+        HTTP_PROXY_OPTIONS* http_proxy_data = (HTTP_PROXY_OPTIONS*)value;
+
+        if (http_proxy_data->host_address == NULL)
+        {
+            LogError("NULL proxy host address in proxy configuration");
+            result = HTTPAPI_INVALID_ARG;
+        }
+        else
+        {
+            if (http_instance->proxy_host_name != NULL)
+            {
+                free(http_instance->proxy_host_name);
+            }
+            if (http_instance->proxy_user_name != NULL)
+            {
+                free(http_instance->proxy_user_name);
+            }
+            if (http_instance->proxy_password != NULL)
+            {
+                free(http_instance->proxy_password);
+            }
+
+            http_instance->proxy_port = http_proxy_data->port;
+            http_instance->proxy_user_name = NULL;
+            http_instance->proxy_password = NULL;
+
+            if (mallocAndStrcpy_s(&http_instance->proxy_host_name, http_proxy_data->host_address) != 0)
+            {
+                LogError("Cannot copy proxy hostname");
+                result = HTTPAPI_ALLOC_FAILED;
+            }
+            else
+            {
+                if ((http_proxy_data->username != NULL) &&
+                    (mallocAndStrcpy_s(&http_instance->proxy_user_name, http_proxy_data->username) != 0))
+                {
+                    LogError("Cannot copy proxy user_name");
+                    result = HTTPAPI_ALLOC_FAILED;
+                }
+                else if ((http_proxy_data->password != NULL) &&
+                        (mallocAndStrcpy_s(&http_instance->proxy_password, http_proxy_data->password) != 0))
+                {
+                    LogError("Cannot copy proxy password");
+                    result = HTTPAPI_ALLOC_FAILED;
+                }
+                else
+                {
+                    result = HTTPAPI_OK;
+                }
+            }
+        }
+    }
     else if (strcmp(SU_OPTION_X509_CERT, optionName) == 0)
     {
         if (http_instance->x509ClientCertificate)
@@ -1397,6 +1515,53 @@ HTTPAPI_RESULT HTTPAPI_CloneOption(const char* optionName, const void* value, co
             (void)strcpy(tempCert, (const char*)value);
             *savedValue = tempCert;
             result = HTTPAPI_OK;
+        }
+    }
+    else if (strcmp(OPTION_HTTP_PROXY, optionName) == 0)
+    {
+        HTTP_PROXY_OPTIONS* new_options = (HTTP_PROXY_OPTIONS*)malloc(sizeof(HTTP_PROXY_OPTIONS));
+        HTTP_PROXY_OPTIONS* http_proxy_data = (HTTP_PROXY_OPTIONS*)value;
+        if (new_options == NULL)
+        {
+            result = HTTPAPI_ALLOC_FAILED;
+        }
+        else
+        {
+            new_options->port = http_proxy_data->port;
+            new_options->username = NULL;
+            new_options->password = NULL;
+
+            if (mallocAndStrcpy_s((char**)&new_options->host_address, http_proxy_data->host_address) != 0)
+            {
+                free(new_options);
+                LogError("Cannot copy proxy hostname");
+                result = HTTPAPI_ALLOC_FAILED;
+            }
+            else
+            {
+                if ((http_proxy_data->username != NULL) &&
+                    (mallocAndStrcpy_s((char**)&new_options->username, http_proxy_data->username) != 0))
+                {
+                    free((char*)new_options->host_address);
+                    free(new_options);
+                    LogError("Cannot copy proxy user_name");
+                    result = HTTPAPI_ALLOC_FAILED;
+                }
+                else if ((http_proxy_data->password != NULL) &&
+                    (mallocAndStrcpy_s((char**)&new_options->password, http_proxy_data->password) != 0))
+                {
+                    free((char*)new_options->username);
+                    free((char*)new_options->host_address);
+                    free(new_options);
+                    LogError("Cannot copy proxy password");
+                    result = HTTPAPI_ALLOC_FAILED;
+                }
+                else
+                {
+                    *savedValue = new_options;
+                    result = HTTPAPI_OK;
+                }
+            }
         }
     }
     else

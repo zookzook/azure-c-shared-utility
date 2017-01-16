@@ -861,7 +861,11 @@ static int create_openssl_instance(TLS_IO_INSTANCE* tlsInstance)
                     socketio_config.port = tlsInstance->port;
                     socketio_config.accepted_socket = NULL;
 
-                    tlsInstance->underlying_io = xio_create(underlying_io_interface, &socketio_config);
+                    if (tlsInstance->underlying_io == NULL)
+                    {
+                        tlsInstance->underlying_io = xio_create(underlying_io_interface, &socketio_config);
+                    }
+
                     if ((tlsInstance->underlying_io == NULL) ||
                         (BIO_set_mem_eof_return(tlsInstance->in_bio, -1) <= 0) ||
                         (BIO_set_mem_eof_return(tlsInstance->out_bio, -1) <= 0))
@@ -966,6 +970,7 @@ CONCRETE_IO_HANDLE tlsio_openssl_create(void* io_create_parameters)
             memset(result, 0, sizeof(TLS_IO_INSTANCE));
             mallocAndStrcpy_s(&result->hostname, tls_io_config->hostname);
             result->port = tls_io_config->port;
+            result->underlying_io = tls_io_config->underlying_io;
 
             result->ssl_context = NULL;
             result->ssl = NULL;
