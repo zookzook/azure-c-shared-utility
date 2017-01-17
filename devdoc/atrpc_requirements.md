@@ -75,6 +75,7 @@ extern int atrpc_close (ATRPC_HANDLE const handle);
 **SRS_ATRPC_27_013: [** If the `handle` argument is `NULL`, then `atrpc_close()` shall fail and return a non-zero value. **]**  
 **SRS_ATRPC_27_014: [** If `atrpc_open()` has not been called on the `handle`, `atrpc_close()` shall do nothing and return 0. **]**  
 **SRS_ATRPC_27_015: [** If `atrpc_open()` has been called on the `handle` and the `on_open_complete` callback has not been called, `atrpc_close()` shall call the `(void)on_open_complete(void * context, ta_result_code result_code, char * response)` callback provided to `atrpc_open()`, using the `on_open_complete_context` argument provided to `atrpc_open()` as the `context` parameter, and `ERROR_ATRPC` as the `result_code` parameter. **]**  
+**SRS_ATRPC_27_078: [** If `atrpc_open()` has been called on the `handle` and the `on_open_complete` callback has not been called, `atrpc_close()` shall free the memory associated with the current request. **]**  
 **SRS_ATRPC_27_016: [** `atrpc_close()` shall call `(int)xio_close(XIO_HANDLE handle, ON_IO_CLOSE_COMPLETE on_io_close_complete, void * on_io_close_complete_context)`. **]**  
 **SRS_ATRPC_27_017: [** If the call to `xio_close()` returns a non-zero value, then `atrpc_close()` shall fail and return a non-zero value. **]**  
 **SRS_ATRPC_27_018: [** `atrpc_close()` shall block until the `on_io_close_complete` callback passed to `xio_close()` completes. **]**  

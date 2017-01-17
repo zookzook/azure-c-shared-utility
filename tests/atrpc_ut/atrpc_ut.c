@@ -137,7 +137,9 @@ mock_xio_create(
     const IO_INTERFACE_DESCRIPTION * io_interface_description_,
     const void * io_parameters_
 ) {
-    (void)io_interface_description_, io_parameters_;
+    (void)io_interface_description_;
+    (void)io_parameters_;
+
     mock_xio_memory = non_mocked_malloc(1);
     return MOCK_UARTIO;
 }
@@ -183,7 +185,9 @@ mock_xio_send(
     ON_SEND_COMPLETE on_send_complete_,
     void * on_send_context_
 ) {
-    (void)handle_, buffer_, size_;
+    (void)handle_;
+    (void)buffer_;
+    (void)size_;
     intercepted_xio_on_send_complete = on_send_complete_;
     intercepted_xio_on_send_context = on_send_context_;
     on_send_complete_(on_send_context_, IO_SEND_OK);
@@ -723,6 +727,7 @@ TEST_FUNCTION(close_SCENARIO_already_closed)
 }
 
 /* Tests_SRS_ATRPC_27_015: [ If atrpc_open() has been called on the handle and the on_open_complete callback has not been called, atrpc_close() shall call the (void)on_open_complete(void * context, ta_result_code result_code, char * response) callback provided to atrpc_open(), using the on_open_complete_context argument provided to atrpc_open() as the context parameter, and ERROR_ATRPC as the result_code parameter. ] */
+/* Codes_SRS_ATRPC_27_078: [ If `atrpc_open()` has been called on the `handle` and the `on_open_complete` callback has not been called, `atrpc_close()` shall free the memory associated with the current request. ] */
 TEST_FUNCTION(close_SCENARIO_cancel_open)
 {
     // Arrange
@@ -737,6 +742,7 @@ TEST_FUNCTION(close_SCENARIO_cancel_open)
     STRICT_EXPECTED_CALL(xio_close(MOCK_UARTIO, IGNORED_PTR_ARG, IGNORED_PTR_ARG))
         .IgnoreArgument(2)
         .IgnoreArgument(3);
+    EXPECTED_CALL(gballoc_free(IGNORED_PTR_ARG));
     STRICT_EXPECTED_CALL(mock_on_open_response(atrpc, ERROR_ATRPC));
 
     // Act
@@ -887,6 +893,7 @@ TEST_FUNCTION(destroy_SCENARIO_close_not_called_before_destroy)
     STRICT_EXPECTED_CALL(xio_close(MOCK_UARTIO, IGNORED_PTR_ARG, IGNORED_PTR_ARG))
         .IgnoreArgument(2)
         .IgnoreArgument(3);
+    EXPECTED_CALL(gballoc_free(IGNORED_PTR_ARG));
     STRICT_EXPECTED_CALL(mock_on_open_response(atrpc, ERROR_ATRPC));
     STRICT_EXPECTED_CALL(xio_destroy(MOCK_UARTIO));
     STRICT_EXPECTED_CALL(tickcounter_destroy(MOCK_TICKCOUNTER));
