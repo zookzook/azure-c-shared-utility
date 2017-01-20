@@ -6,6 +6,12 @@
 #include "azure_c_shared_utility/tlsio.h"
 #include "azure_c_shared_utility/platform.h"
 
+#include "azure_c_shared_utility/tlsio_mbedconfig.h"
+
+#ifdef USE_MBED_TLS
+#include "mbed/googlecerts.h"
+#endif
+
 static void on_io_open_complete(void* context, IO_OPEN_RESULT open_result)
 {
     (void)context, open_result;
@@ -25,7 +31,7 @@ static void on_io_open_complete(void* context, IO_OPEN_RESULT open_result)
     }
     else
     {
-        (void)printf("Open error\r\n");
+        (void)printf("Open error (%d)\r\n", open_result);
     }
 }
 
@@ -75,6 +81,14 @@ int main(int argc, void** argv)
             }
             else
             {
+#ifdef USE_MBED_TLS
+				if (xio_setoption(tlsio, "TrustedCerts", certificates) != 0)
+				{
+                    (void)printf("Error setting certificate chain");
+                    result = __LINE__;
+					return result;
+				}
+#endif				
                 if (xio_open(tlsio, on_io_open_complete, tlsio, on_io_bytes_received, tlsio, on_io_error, tlsio) != 0)
                 {
                     (void)printf("Error opening TLS IO.");

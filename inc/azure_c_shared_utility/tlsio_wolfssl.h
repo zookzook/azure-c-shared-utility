@@ -1,6 +1,10 @@
 // Copyright (c) Microsoft. All rights reserved.
 // Licensed under the MIT license. See LICENSE file in the project root for full license information.
 
+#include "azure_c_shared_utility/tlsio_mbedconfig.h"
+
+#ifdef USE_WOLF_SSL
+
 #ifndef TLSIO_WOLFSSL_H
 #define TLSIO_WOLFSSL_H
 
@@ -30,3 +34,5 @@ MOCKABLE_FUNCTION(, const IO_INTERFACE_DESCRIPTION*, tlsio_wolfssl_get_interface
 #endif /* __cplusplus */
 
 #endif /* TLSIO_WOLFSSL_H */
+
+#endif /* USE_WOLF_SSL */

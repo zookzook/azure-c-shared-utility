@@ -1,6 +1,8 @@
 // Copyright (c) Microsoft. All rights reserved.
 // Licensed under the MIT license. See LICENSE file in the project root for full license information.
 
+#include "azure_c_shared_utility/tlsio_mbedconfig.h"
+
 #include <stdlib.h>
 #ifdef _CRTDBG_MAP_ALLOC
 #include <crtdbg.h>
@@ -9,7 +11,14 @@
 #include "EthernetInterface.h"
 #include "NTPClient.h"
 #include "azure_c_shared_utility/xio.h"
+
+#if defined(USE_WOLF_SSL)
 #include "azure_c_shared_utility/tlsio_wolfssl.h"
+#elif defined(USE_MBED_TLS)
+#include "azure_c_shared_utility/tlsio_mbedtls.h"
+#else
+#error No TLS/SSL library has been specified (see tlsio_mbedconfig.h)
+#endif
 
 int setupRealTime(void)
 {
@@ -62,7 +71,11 @@ int platform_init(void)
 
 const IO_INTERFACE_DESCRIPTION* platform_get_default_tlsio(void)
 {
+#if defined(USE_WOLF_SSL)
     return tlsio_wolfssl_get_interface_description();
+#else
+    return tlsio_mbedtls_get_interface_description();
+#endif
 }
 
 void platform_deinit(void)

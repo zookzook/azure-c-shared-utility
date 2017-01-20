@@ -46,8 +46,9 @@ if(WIN32)
     option(use_wolfssl "set use_wolfssl to ON if wolfssl is to be used, set to OFF to not use wolfssl" OFF)
 else()
     option(use_schannel "set use_schannel to ON if schannel is to be used, set to OFF to not use schannel" OFF)
-    option(use_openssl "set use_openssl to ON if openssl is to be used, set to OFF to not use openssl" ON)
+    option(use_openssl "set use_openssl to ON if openssl is to be used, set to OFF to not use openssl" OFF)
     option(use_wolfssl "set use_wolfssl to ON if wolfssl is to be used, set to OFF to not use wolfssl" OFF)
+    option(use_mbedtls "set use_mbedtls to ON if mbedtls is to be used, set to OFF to not use mbedtls" ON)
 endif()
 option(use_socketio "set use_socketio to ON if socketio is to be included in the library, set to OFF if a different implementation will be provided" ON)
 option(use_cyclonessl "set use_cyclonessl to ON if cyclonessl is to be used, set to OFF to not use cyclonessl" OFF)
@@ -347,6 +348,11 @@ if(${use_wolfssl})
         ./src/tlsio_wolfssl.c
     )
 endif()
+if(${use_mbedtls})
+    set(source_c_files ${source_c_files}
+        ./src/tlsio_mbedtls.c
+    )
+endif()
 if(${use_openssl})
     set(source_c_files ${source_c_files}
         ./src/tlsio_openssl.c
@@ -435,6 +441,11 @@ if(WIN32)
 include_directories($ENV{WolfSSLDir})
 endif()
 endif()
+if(${use_mbedtls})
+    set(source_h_files ${source_h_files}
+        ./inc/azure_c_shared_utility/tlsio_mbedtls.h
+    )
+endif()
 if(${use_openssl})
     set(source_h_files ${source_h_files}
         ./inc/azure_c_shared_utility/tlsio_openssl.h
@@ -504,6 +515,11 @@ endif()
 
 if(${use_wolfssl})
     target_link_libraries(aziotsharedutil wolfssl)
+endif()
+
+if(${use_mbedtls})
+	find_library(MBEDTLS_LIBRARY NAMES mbedtls mbedcrypto mbedx509 HINTS /usr/local/lib)
+    target_link_libraries(aziotsharedutil ${MBEDTLS_LIBRARY})
 endif()
 
 if(${use_cyclonessl} AND WIN32)

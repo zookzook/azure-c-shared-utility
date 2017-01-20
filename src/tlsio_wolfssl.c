@@ -1,6 +1,10 @@
 // Copyright (c) Microsoft. All rights reserved.
 // Licensed under the MIT license. See LICENSE file in the project root for full license information.
 
+#include "azure_c_shared_utility/tlsio_mbedconfig.h"
+
+#ifdef USE_WOLF_SSL
+
 #include <stdlib.h>
 #ifdef _CRTDBG_MAP_ALLOC
 #include <crtdbg.h>
@@ -807,3 +811,5 @@ int tlsio_wolfssl_setoption(CONCRETE_IO_HANDLE tls_io, const char* optionName, c
 
     return result;
 }
+
+#endif /* USE_WOLF_SSL */

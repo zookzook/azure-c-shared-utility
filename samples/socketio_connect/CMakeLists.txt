@@ -14,10 +14,19 @@ IF(WIN32)
 ENDIF(WIN32)
 
 add_executable(socketio_connect ${socketio_connect_c_files})
-
-target_link_libraries(socketio_connect 
-    aziotsharedutil
-)
+	
+if(${use_mbedtls})
+	find_library(MBEDTLS_LIBRARY NAMES mbedtls HINTS /usr/local/lib)
+	find_library(MBEDCRYPTO_LIBRARY NAMES mbedcrypto HINTS /usr/local/lib)
+	find_library(MBEDX509_LIBRARY NAMES mbedx509 HINTS /usr/local/lib)
+	message(STATUS "in use mbed ${MBEDTLS_LIBRARY}	")
+	message(STATUS "in use mbed ${MBEDCRYPTO_LIBRARY}	")
+	message(STATUS "in use mbed ${MBEDX509_LIBRARY}	")
+    target_link_libraries(socketio_connect aziotsharedutil ${MBEDX509_LIBRARY} ${MBEDTLS_LIBRARY} ${MBEDCRYPTO_LIBRARY})
+else()
+	target_link_libraries(socketio_connect 
+		aziotsharedutil)
+endif()
 
 if(${use_openssl} AND WIN32)
 	file(COPY $ENV{OpenSSLDir}/bin/libeay32.dll DESTINATION ${CMAKE_CURRENT_BINARY_DIR})
