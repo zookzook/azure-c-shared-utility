@@ -6,10 +6,6 @@
 #ifdef USE_WOLF_SSL
 
 #include <stdlib.h>
-#ifdef _CRTDBG_MAP_ALLOC
-#include <crtdbg.h>
-#endif
-
 #include "wolfssl/ssl.h"
 #include "wolfssl/error-ssl.h"
 #include <stdio.h>

@@ -8,7 +8,7 @@
 
 static void on_io_open_complete(void* context, IO_OPEN_RESULT open_result)
 {
-    (void)context, open_result;
+    (void)context, (void)open_result;
     (void)printf("Open complete called\r\n");
 
     if (open_result == IO_OPEN_OK)
@@ -31,7 +31,7 @@ static void on_io_open_complete(void* context, IO_OPEN_RESULT open_result)
 
 static void on_io_bytes_received(void* context, const unsigned char* buffer, size_t size)
 {
-    (void)context, buffer;
+    (void)context, (void)buffer;
     (void)printf("Received %zu bytes\r\n", size);
 }
 
@@ -41,11 +41,11 @@ static void on_io_error(void* context)
     (void)printf("IO reported an error\r\n");
 }
 
-int main(int argc, void** argv)
+int main(int argc, char** argv)
 {
     int result;
 
-    (void)argc, argv;
+    (void)argc, (void)argv;
 
     if (platform_init() != 0)
     {

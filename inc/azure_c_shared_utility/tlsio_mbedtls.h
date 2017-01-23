@@ -30,7 +30,6 @@ MOCKABLE_FUNCTION(, int, tlsio_mbedtls_close, CONCRETE_IO_HANDLE, tls_io, ON_IO_
 MOCKABLE_FUNCTION(, int, tlsio_mbedtls_send, CONCRETE_IO_HANDLE, tls_io, const void*, buffer, size_t, size, ON_SEND_COMPLETE, on_send_complete, void*, callback_context);
 MOCKABLE_FUNCTION(, void, tlsio_mbedtls_dowork, CONCRETE_IO_HANDLE, tls_io);
 MOCKABLE_FUNCTION(, int, tlsio_mbedtls_setoption, CONCRETE_IO_HANDLE, tls_io, const char*, optionName, const void*, value);
-// TODO: What is this? WolfSSL does not define it
 MOCKABLE_FUNCTION(, OPTIONHANDLER_HANDLE, tlsio_mbedtls_retrieveoptions, CONCRETE_IO_HANDLE, handle);
 
 MOCKABLE_FUNCTION(, const IO_INTERFACE_DESCRIPTION*, tlsio_mbedtls_get_interface_description);

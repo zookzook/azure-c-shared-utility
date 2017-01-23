@@ -4,9 +4,8 @@
 #include "azure_c_shared_utility/tlsio_mbedconfig.h"
 
 #include <stdlib.h>
-#ifdef _CRTDBG_MAP_ALLOC
-#include <crtdbg.h>
-#endif
+#include <stddef.h>
+
 #include "azure_c_shared_utility/platform.h"
 #include "EthernetInterface.h"
 #include "NTPClient.h"

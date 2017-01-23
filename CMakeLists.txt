@@ -9,6 +9,8 @@ endif()
 
 project(azure_c_shared_utility)
 
+set(C_SHARED_VERSION 1.0.25)
+
 option(run_valgrind "set run_valgrind to ON if tests are to be run under valgrind/helgrind/drd. Default is OFF" OFF)
 
 #making a nice global variable to know if we are on linux or not.
@@ -39,6 +41,7 @@ option(nuget_e2e_tests "set nuget_e2e_tests to ON to generate e2e tests to run w
 option(use_installed_dependencies "set use_installed_dependencies to ON to use installed packages instead of building dependencies from submodules" OFF)
 option(use_default_uuid "set use_default_uuid to ON to use the out of the box UUID that comes with the SDK rather than platform specific implementations" OFF)
 option(run_e2e_tests "set run_e2e_tests to ON to run e2e tests (default is OFF). Chsare dutility does not have any e2e tests, but the option needs to exist to evaluate in IF statements" OFF)
+option(use_builtin_httpapi "set use_builtin_httpapi to ON to use the built-in httpapi_compact that comes with C shared utility (default is OFF)" OFF)
 
 if(WIN32)
     option(use_schannel "set use_schannel to ON if schannel is to be used, set to OFF to not use schannel" ON)
@@ -55,6 +58,7 @@ option(use_cyclonessl "set use_cyclonessl to ON if cyclonessl is to be used, set
 
 option(compileOption_C "passes a string to the command line of the C compiler" OFF)
 option(compileOption_CXX "passes a string to the command line of the C++ compiler" OFF)
+option(build_as_dynamic "build the C Shared libaries as shared"  OFF)
 
 if(${use_cyclonessl} AND WIN32)
     set(cyclonessl_c_files
@@ -120,6 +124,16 @@ if(${use_cyclonessl} AND WIN32)
 
 endif()
 
+if(${use_openssl} OR ${use_wsio})
+    # use_wsio pulls in libwebsockets, which uses OpenSSL
+    if("${OPENSSL_ROOT_DIR}" STREQUAL "" AND NOT ("$ENV{OpenSSLDir}" STREQUAL ""))
+        set(OPENSSL_ROOT_DIR $ENV{OpenSSLDir} CACHE PATH "")
+    endif()
+
+    find_package(OpenSSL REQUIRED)
+    include_directories(${OPENSSL_INCLUDE_DIR})
+endif()
+
 # Start of variables used during install
 set (LIB_INSTALL_DIR lib CACHE PATH "Library object file directory")
 
@@ -131,7 +145,12 @@ if(MSVC)
         set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} /W3")
         set(CMAKE_C_FLAGS "${CMAKE_C_FLAGS} /W3")
         # WEC 2013 uses older VS compiler. Build some files as C++ files to resolve C99 related compile issues
-        SET_SOURCE_FILES_PROPERTIES(src/consolelogger.c src/xlogging.c src/map.c adapters/uniqueid_win32.c adapters/httpapi_wince.c src/tlsio_schannel.c src/x509_schannel.c PROPERTIES LANGUAGE CXX)
+        SET_SOURCE_FILES_PROPERTIES(src/consolelogger.c src/xlogging.c src/map.c adapters/uniqueid_win32.c src/tlsio_schannel.c src/x509_schannel.c PROPERTIES LANGUAGE CXX)
+        if (${use_httpapi_compact})
+            SET_SOURCE_FILES_PROPERTIES(adapters/httpapi_compact.c PROPERTIES LANGUAGE CXX)
+        else()
+            SET_SOURCE_FILES_PROPERTIES(adapters/httpapi_wince.c PROPERTIES LANGUAGE CXX)
+        endif()
         add_definitions(-DWIN32) #WEC 2013
     ELSE()
 
@@ -148,17 +167,15 @@ if(MSVC)
         endif()
 
     endif()
-elseif(LINUX)
+elseif(UNIX) #LINUX OR APPLE
     set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -fPIC -Werror")
     set(CMAKE_C_FLAGS "${CMAKE_C_FLAGS} -fPIC -Werror")
-    if(NOT IN_OPENWRT)
+    if(NOT (IN_OPENWRT OR APPLE))
         set (CMAKE_C_FLAGS "-D_POSIX_C_SOURCE=200112L ${CMAKE_C_FLAGS}")
     endif()
 endif()
 
 if(${use_wsio})
-    
-    include_directories($ENV{OpenSSLDir}/include)
 
     if(WIN32)
         string(REPLACE "/W4" "/W0" CMAKE_C_FLAGS ${CMAKE_C_FLAGS})
@@ -185,20 +202,30 @@ if(${use_wsio})
         string(REPLACE "/W0" "/W4" CMAKE_C_FLAGS ${CMAKE_C_FLAGS})
         string(REPLACE "/W0" "/W4" CMAKE_CXX_FLAGS ${CMAKE_CXX_FLAGS})
 
-    elseif(LINUX)
-        #because libwebsockets? is sensible to -Werror, it shall be removed, and re-added after
-        string(REPLACE "-Werror" "" CMAKE_C_FLAGS ${CMAKE_C_FLAGS})
-        string(REPLACE "-Werror" "" CMAKE_CXX_FLAGS ${CMAKE_CXX_FLAGS})
-        if(NOT IN_OPENWRT)
-            string(REPLACE "-D_POSIX_C_SOURCE=200112L" "" CMAKE_C_FLAGS ${CMAKE_C_FLAGS})
+    elseif(UNIX) #LINUX AND APPLE
+        #because libwebsockets is sensitive to -Werror, it shall be removed, and re-added after
+        if(CMAKE_C_FLAGS)
+            set(RESTORE_CMAKE_C_FLAGS ON)
+            string(REPLACE "-Werror" "" CMAKE_C_FLAGS ${CMAKE_C_FLAGS})
+            if(NOT IN_OPENWRT)
+                string(REPLACE "-D_POSIX_C_SOURCE=200112L" "" CMAKE_C_FLAGS ${CMAKE_C_FLAGS})
+            endif()
+        endif()
+        if(CMAKE_CXX_FLAGS)
+            set(RESTORE_CMAKE_CXX_FLAGS ON)
+            string(REPLACE "-Werror" "" CMAKE_CXX_FLAGS ${CMAKE_CXX_FLAGS})
         endif()
         
         include("dependencies.cmake")
-        
-        set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -Werror")
-        set(CMAKE_C_FLAGS "${CMAKE_C_FLAGS} -Werror")
-        if(NOT IN_OPENWRT)
-            set(CMAKE_C_FLAGS "${CMAKE_C_FLAGS} -D_POSIX_C_SOURCE=200112L")
+
+        if(RESTORE_CMAKE_C_FLAGS)
+            set(CMAKE_C_FLAGS "${CMAKE_C_FLAGS} -Werror")
+            if(NOT IN_OPENWRT)
+                set(CMAKE_C_FLAGS "${CMAKE_C_FLAGS} -D_POSIX_C_SOURCE=200112L")
+            endif()
+        endif()
+        if(RESTORE_CMAKE_CXX_FLAGS)
+            set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -Werror")
         endif()
 
     endif()
@@ -395,7 +422,9 @@ set(source_h_files
 ./inc/azure_c_shared_utility/socketio.h
 ./inc/azure_c_shared_utility/stdint_ce6.h
 ./inc/azure_c_shared_utility/strings.h
+./inc/azure_c_shared_utility/strings_types.h
 ./inc/azure_c_shared_utility/string_tokenizer.h
+./inc/azure_c_shared_utility/string_tokenizer_types.h
 ./inc/azure_c_shared_utility/tickcounter.h
 ./inc/azure_c_shared_utility/threadapi.h
 ./inc/azure_c_shared_utility/xio.h
@@ -437,9 +466,9 @@ if(${use_wolfssl})
     set(source_h_files ${source_h_files}
         ./inc/azure_c_shared_utility/tlsio_wolfssl.h
     )
-if(WIN32)
-include_directories($ENV{WolfSSLDir})
-endif()
+    if(WIN32)
+        include_directories($ENV{WolfSSLDir})
+    endif()
 endif()
 if(${use_mbedtls})
     set(source_h_files ${source_h_files}
@@ -449,11 +478,8 @@ endif()
 if(${use_openssl})
     set(source_h_files ${source_h_files}
         ./inc/azure_c_shared_utility/tlsio_openssl.h
-    ./inc/azure_c_shared_utility/x509_openssl.h
-    )
-    if(WIN32 OR APPLE)
-        include_directories($ENV{OpenSSLDir}/include)
-    endif()
+        ./inc/azure_c_shared_utility/x509_openssl.h
+        )
 endif()
 if(${use_cyclonessl} AND WIN32)
     set(source_h_files ${source_h_files}
@@ -478,7 +504,11 @@ ELSE()
 ENDIF(WIN32)
 
 #this is the product (a library)
-add_library(aziotsharedutil ${source_c_files} ${source_h_files})
+if(${build_as_dynamic})
+    add_library(aziotsharedutil SHARED ./src/aziotsharedutil.def ${source_c_files} ${source_h_files})
+else()
+    add_library(aziotsharedutil ${source_c_files} ${source_h_files})
+endif()
 
 if(${use_http})
     if(WIN32)
@@ -503,13 +533,9 @@ if(${use_schannel})
 endif()
 
 if(${use_openssl})
+    target_link_libraries(aziotsharedutil ${OPENSSL_LIBRARIES})
     if (WIN32)
-        target_link_libraries(aziotsharedutil
-            $ENV{OpenSSLDir}/lib/ssleay32.lib 
-            $ENV{OpenSSLDir}/lib/libeay32.lib
-            crypt32 ws2_32 secur32)
-    else()
-        target_link_libraries(aziotsharedutil ssl crypto)
+        target_link_libraries(aziotsharedutil crypt32 ws2_32 secur32)
     endif()
 endif()
 
@@ -545,7 +571,27 @@ if (${run_unittests})
     add_subdirectory(tests)
 endif()
 
+function(FindDllFromLib var libFile)
+    get_filename_component(_libName ${libFile} NAME_WE)
+    get_filename_component(_libDir ${libFile} DIRECTORY)
+
+    while(NOT ("${_libDir}" STREQUAL ""))
+        file(GLOB_RECURSE _dllList "${_libDir}/${_libName}.dll")
+        list(LENGTH _dllList _listLen)
+        if(${_listLen} GREATER 0)
+            list(GET _dllList 0 _dll)
+            set(${var} "${_dll}" PARENT_SCOPE)
+            break()
+        endif()
+        get_filename_component(_libDir ${_libDir} DIRECTORY)
+    endwhile()
+endfunction()
+
 if (NOT ${skip_samples})
+    if(${use_openssl} AND WIN32)
+        FindDllFromLib(SSL_DLL "${OPENSSL_SSL_LIBRARY}")
+        FindDllFromLib(CRYPTO_DLL "${OPENSSL_CRYPTO_LIBRARY}")
+    endif()
     add_subdirectory(samples)
 endif()
 
@@ -571,6 +617,12 @@ if(${use_installed_dependencies})
 
     include(CMakePackageConfigHelpers)
 
+    write_basic_package_version_file(
+        "${CMAKE_CURRENT_BINARY_DIR}/${PROJECT_NAME}/${PROJECT_NAME}ConfigVersion.cmake"
+        VERSION ${C_SHARED_VERSION}
+        COMPATIBILITY SameMajorVersion
+    )
+
     configure_file("configs/${PROJECT_NAME}Config.cmake"
         "${CMAKE_CURRENT_BINARY_DIR}/${PROJECT_NAME}/${PROJECT_NAME}Config.cmake"
         COPYONLY
@@ -586,6 +638,7 @@ if(${use_installed_dependencies})
         FILES
             "configs/${PROJECT_NAME}Config.cmake"
             "configs/${PROJECT_NAME}Functions.cmake"
+            "${CMAKE_CURRENT_BINARY_DIR}/${PROJECT_NAME}/${PROJECT_NAME}ConfigVersion.cmake"
         DESTINATION
             ${package_location}
     )

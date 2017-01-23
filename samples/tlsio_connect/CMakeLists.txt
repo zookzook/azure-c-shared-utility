@@ -34,10 +34,10 @@ else()
 endif()
 
 if(${use_openssl} AND WIN32)
-	file(COPY $ENV{OpenSSLDir}/bin/libeay32.dll DESTINATION ${CMAKE_CURRENT_BINARY_DIR})
-	file(COPY $ENV{OpenSSLDir}/bin/ssleay32.dll DESTINATION ${CMAKE_CURRENT_BINARY_DIR})
+	file(COPY ${SSL_DLL} DESTINATION ${CMAKE_CURRENT_BINARY_DIR})
+	file(COPY ${CRYPTO_DLL} DESTINATION ${CMAKE_CURRENT_BINARY_DIR})
 endif()
 
 set_target_properties(tlsio_connect
-			   PROPERTIES
-			   FOLDER "azure_c_shared_utility_samples")
+    PROPERTIES
+    FOLDER "azure_c_shared_utility_samples")

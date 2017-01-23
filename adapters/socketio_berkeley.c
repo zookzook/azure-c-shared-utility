@@ -2,10 +2,6 @@
 // Licensed under the MIT license. See LICENSE file in the project root for full license information.
 
 #include <stdlib.h>
-#ifdef _CRTDBG_MAP_ALLOC
-#include <crtdbg.h>
-#endif
-
 #include <stddef.h>
 #include <stdio.h>
 #include <string.h>
@@ -13,7 +9,11 @@
 #include <sys/types.h>
 #include <sys/socket.h>
 #include <sys/select.h>
+#ifdef TIZENRT
+#include <net/lwip/tcp.h>
+#else
 #include <netinet/tcp.h>
+#endif
 #include <errno.h>
 #include <netdb.h>
 #include <unistd.h>
