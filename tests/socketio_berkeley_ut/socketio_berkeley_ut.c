@@ -17,26 +17,71 @@
 
 #undef ENABLE_MOCKS
 
-#include "azure_c_shared_utility/socketio.h"
 
+#include "azure_c_shared_utility/socketio.h"
 #include <sys/types.h>
 #include <sys/socket.h>
 #include <netdb.h>
 
-TEST_MUTEX_HANDLE test_serialize_mutex;
+#define PORT_NUM 80
+#define HOSTNAME_ARG "hostname"
+
+static size_t callbackContext = 11;
+
+
+
+static TEST_MUTEX_HANDLE test_serialize_mutex;
+
+static void on_umock_c_error(UMOCK_C_ERROR_CODE error_code)
+{
+    char temp_str[256];
+    (void)snprintf(temp_str, sizeof(temp_str), "umock_c reported error :%s", ENUM_TO_STRING(UMOCK_C_ERROR_CODE, error_code));
+    ASSERT_FAIL(temp_str);
+}
+
+static int TEST_setsockopt(int sockfd, int level, int optname, const void *optval, socklen_t optlen)
+{
+    (void)sockfd;
+    (void)level;
+    (void)optname;
+    (void)optval;
+    (void)optlen;
+
+    return 0;
+}
+
+static void test_on_io_open_complete(void* context, IO_OPEN_RESULT open_result)
+{
+    (void)context;
+    (void)open_result;
+}
+
+static void test_on_bytes_received(void* context, const unsigned char* buffer, size_t size)
+{
+    (void)context;
+    (void)buffer;
+    (void)size;
+}
+
+static void test_on_io_close_complete(void* context)
+{
+    (void)context;
+}
+
+static void test_on_io_error(void* context)
+{
+    (void)context;
+}
+
 
 BEGIN_TEST_SUITE(socketio_berkeley_unittests)
-
-#if 0
-
-// SOCKETIO_SETOPTION TESTS WERE WORKING BEFORE SWITCH TO umock_c...need to finish the conversion
 
 // socketio_setoption tests
 
 static CONCRETE_IO_HANDLE setup_socket()
 {
     SOCKETIO_CONFIG socketConfig = { HOSTNAME_ARG, PORT_NUM, NULL };
-    CONCRETE_IO_HANDLE ioHandle = socketio_create(&socketConfig, PrintLogFunction);
+    CONCRETE_IO_HANDLE ioHandle = socketio_create(&socketConfig);
     int result = socketio_open(ioHandle, test_on_io_open_complete, &callbackContext,
         test_on_bytes_received, &callbackContext, test_on_io_error, &callbackContext);
     ASSERT_ARE_EQUAL(int, 0, result);
@@ -47,6 +92,44 @@ static void verify_mocks_and_destroy_socket(CONCRETE_IO_HANDLE ioHandle)
 {
     ASSERT_ARE_EQUAL(char_ptr, umock_c_get_expected_calls(), umock_c_get_actual_calls());
     socketio_destroy(ioHandle);
+}
+
+TEST_SUITE_INITIALIZE(suite_init)
+{
+    test_serialize_mutex = TEST_MUTEX_CREATE();
+    ASSERT_IS_NOT_NULL(test_serialize_mutex);
+
+    umock_c_init(on_umock_c_error);
+
+    REGISTER_GLOBAL_MOCK_HOOK(setsockopt, TEST_setsockopt);
+}
+
+TEST_SUITE_CLEANUP(suite_cleanup)
+{
+    umock_c_deinit();
+
+    TEST_MUTEX_DESTROY(test_serialize_mutex);
+}
+
+TEST_FUNCTION_INITIALIZE(method_init)
+{
+    if (!MicroMockAcquireMutex(test_serialize_mutex))
+    {
+        ASSERT_FAIL("Could not acquire test serialization mutex.");
+    }
+    list_head_count = 0;
+    list_add_called = false;
+    g_addrinfo_call_fail = false;
+    //g_socket_send_size_value = -1;
+    g_socket_recv_size_value = -1;
+}
+
+TEST_FUNCTION_CLEANUP(method_cleanup)
+{
+    if (!MicroMockReleaseMutex(test_serialize_mutex))
+    {
+        ASSERT_FAIL("Could not release test serialization mutex.");
+    }
 }
 
 TEST_FUNCTION(socketio_setoption_fails_when_handle_is_null)
@@ -171,43 +254,11 @@ TEST_FUNCTION(socketio_setoption_passes_tcp_keepalive_interval_to_setsockopt)
     verify_mocks_and_destroy_socket(ioHandle);
 }
 
-#endif
 
 /* Seems like the below tests require a full blown rewrite */
 
 #if 0
 
-TEST_SUITE_INITIALIZE(suite_init)
-{
-    test_serialize_mutex = MicroMockCreateMutex();
-    ASSERT_IS_NOT_NULL(test_serialize_mutex);
-}
-
-TEST_SUITE_CLEANUP(suite_cleanup)
-{
-    MicroMockDestroyMutex(test_serialize_mutex);
-}
-
-TEST_FUNCTION_INITIALIZE(method_init)
-{
-    if (!MicroMockAcquireMutex(test_serialize_mutex))
-    {
-        ASSERT_FAIL("Could not acquire test serialization mutex.");
-    }
-    list_head_count = 0;
-    list_add_called = false;
-    g_addrinfo_call_fail = false;
-    //g_socket_send_size_value = -1;
-    g_socket_recv_size_value = -1;
-}
-
-TEST_FUNCTION_CLEANUP(method_cleanup)
-{
-    if (!MicroMockReleaseMutex(test_serialize_mutex))
-    {
-        ASSERT_FAIL("Could not release test serialization mutex.");
-    }
-}
 
 static void OnBytesRecieved(void* context, const unsigned char* buffer, size_t size)
 {
