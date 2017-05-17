@@ -164,6 +164,14 @@ BEGIN_TEST_SUITE(tlsio_openssl_compact_unittests)
         tlsio_config.hostname = SSL_good_old_host_name;
     }
 
+static bool negative_mocks_used = false;
+static void use_negative_mocks()
+{
+    negative_mocks_used = true;
+    int negativeTestsInitResult = umock_c_negative_tests_init();
+    ASSERT_ARE_EQUAL(int, 0, negativeTestsInitResult);
+}
+
     /**
      * The test suite will call this function to cleanup your machine.
      * It is called only once, after all tests is done.
@@ -196,6 +204,11 @@ BEGIN_TEST_SUITE(tlsio_openssl_compact_unittests)
      */
     TEST_FUNCTION_CLEANUP(cleans)
     {
+        if (negative_mocks_used)
+        {
+            negative_mocks_used = false;
+            umock_c_negative_tests_deinit();
+        }
         TEST_MUTEX_RELEASE(g_testByTest);
     }
 
@@ -738,8 +751,7 @@ BEGIN_TEST_SUITE(tlsio_openssl_compact_unittests)
     TEST_FUNCTION(tlsio_openssl_compact__send_unhappy_paths__fails)
     {
         ///arrange
-        int negativeTestsInitResult = umock_c_negative_tests_init();
-        ASSERT_ARE_EQUAL(int, 0, negativeTestsInitResult);
+        use_negative_mocks();
 
         STRICT_EXPECTED_CALL(gballoc_malloc(IGNORED_NUM_ARG));  // PENDING_SOCKET_IO
         STRICT_EXPECTED_CALL(gballoc_malloc(IGNORED_NUM_ARG));  // message bytes
@@ -771,8 +783,6 @@ BEGIN_TEST_SUITE(tlsio_openssl_compact_unittests)
         }
 
         ///cleanup
-        umock_c_negative_tests_deinit();
-
     }
 
     /* Tests_SRS_TLSIO_OPENSSL_COMPACT_30_060: [ If the tlsio_handle parameter is NULL, tlsio_openssl_compact_send shall log an error and return FAILURE. ]*/
@@ -931,8 +941,7 @@ BEGIN_TEST_SUITE(tlsio_openssl_compact_unittests)
     TEST_FUNCTION(tlsio_openssl_compact__dowork_open_unhappy_paths__fails)
     {
         ///arrange
-        int negativeTestsInitResult = umock_c_negative_tests_init();
-        ASSERT_ARE_EQUAL(int, 0, negativeTestsInitResult);
+        use_negative_mocks();
 
         bool fails[100];
         int k = 0;
@@ -964,8 +973,7 @@ BEGIN_TEST_SUITE(tlsio_openssl_compact_unittests)
         fails[k++] = true; STRICT_EXPECTED_CALL(get_time(NULL));
 
         // dowork_poll_open_ssl (hard failure)
-        fails[k++] = false; STRICT_EXPECTED_CALL(SSL_connect(SSL_Good_Ptr)).SetReturn(SSL_ERROR__plus__HARD_FAIL);
-        fails[k++] = true; STRICT_EXPECTED_CALL(SSL_get_error(SSL_Good_Ptr, SSL_ERROR__plus__HARD_FAIL));
+        fails[k++] = true; STRICT_EXPECTED_CALL(SSL_connect(SSL_Good_Ptr));
 
         umock_c_negative_tests_snapshot();
 
@@ -1005,7 +1013,6 @@ BEGIN_TEST_SUITE(tlsio_openssl_compact_unittests)
         }
 
         ///cleanup
-        umock_c_negative_tests_deinit();
     }
 
     /* Tests_SRS_TLSIO_OPENSSL_COMPACT_30_080: [ The tlsio_openssl_compact_dowork shall establish an OpenSSL connection using the hostName and port provided during tlsio_openssl_compact_open. ]*/
@@ -1324,8 +1331,7 @@ BEGIN_TEST_SUITE(tlsio_openssl_compact_unittests)
     TEST_FUNCTION(tlsio_openssl_compact__create_unhappy_paths__fails)
     {
         ///arrange
-        int negativeTestsInitResult = umock_c_negative_tests_init();
-        ASSERT_ARE_EQUAL(int, 0, negativeTestsInitResult);
+        use_negative_mocks();
 
         const IO_INTERFACE_DESCRIPTION* tlsio_id = tlsio_get_interface_description();
 
@@ -1347,7 +1353,6 @@ BEGIN_TEST_SUITE(tlsio_openssl_compact_unittests)
         }
 
         ///cleanup
-        umock_c_negative_tests_deinit();
     }
 
     /* Tests_SRS_TLSIO_OPENSSL_COMPACT_30_010: [ The tlsio_openssl_compact_create shall allocate and initialize all necessary resources and return an instance of the tlsio_openssl_compact. ]*/
