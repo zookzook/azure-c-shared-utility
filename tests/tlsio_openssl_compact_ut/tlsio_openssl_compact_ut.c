@@ -96,6 +96,8 @@ static void on_umock_c_error(UMOCK_C_ERROR_CODE error_code)
  */
 static TEST_MUTEX_HANDLE g_testByTest;
 static TEST_MUTEX_HANDLE g_dllByDll;
+static bool negative_mocks_used = false;
+
 
 BEGIN_TEST_SUITE(tlsio_openssl_compact_unittests)
 
@@ -164,13 +166,12 @@ BEGIN_TEST_SUITE(tlsio_openssl_compact_unittests)
         tlsio_config.hostname = SSL_good_old_host_name;
     }
 
-static bool negative_mocks_used = false;
-static void use_negative_mocks()
-{
-    negative_mocks_used = true;
-    int negativeTestsInitResult = umock_c_negative_tests_init();
-    ASSERT_ARE_EQUAL(int, 0, negativeTestsInitResult);
-}
+    static void use_negative_mocks()
+    {
+        negative_mocks_used = true;
+        int negativeTestsInitResult = umock_c_negative_tests_init();
+        ASSERT_ARE_EQUAL(int, 0, negativeTestsInitResult);
+    }
 
     /**
      * The test suite will call this function to cleanup your machine.
@@ -196,6 +197,7 @@ static void use_negative_mocks()
         }
 
         umock_c_reset_all_calls();
+        reset_callback_context_records();
     }
 
     /**
@@ -226,11 +228,11 @@ static void use_negative_mocks()
         tlsio_id->concrete_io_dowork(tlsio); // dowork_poll_open_ssl (finishes Open)
         ASSERT_IO_OPEN_CALLBACK(true, IO_OPEN_OK);
     }
+
     /* Tests_SRS_TLSIO_OPENSSL_COMPACT_30_040: [ tlsio_openssl_compact_open shall succeed during a 'Failed open retry' as defined at the top of this document. ]*/
-    TEST_FUNCTION(tlsio_openssl_compact__retryXXXXXXXXXXXXXXXXXXXXXXXXXXXX_open_after_open_failure__succeeds)
+    TEST_FUNCTION(tlsio_openssl_compact__retry_open_after_open_failure__succeeds)
     {
         ///arrange
-        reset_callback_context_records();
         const IO_INTERFACE_DESCRIPTION* tlsio_id = tlsio_get_interface_description();
         CONCRETE_IO_HANDLE tlsio = tlsio_id->concrete_io_create(&good_config);
         int open_result = tlsio_id->concrete_io_open(tlsio, on_io_open_complete, IO_OPEN_COMPLETE_CONTEXT, on_bytes_received,
@@ -239,21 +241,36 @@ static void use_negative_mocks()
         ASSERT_IO_OPEN_CALLBACK(false, IO_OPEN_ERROR);
         umock_c_reset_all_calls();
 
-        // dowork_poll_open_ssl (done)
+        // dowork_poll_open_ssl (done) Fail the SSL_connect call
         STRICT_EXPECTED_CALL(SSL_connect(SSL_Good_Ptr)).SetReturn(SSL_ERROR__plus__HARD_FAIL);
-        STRICT_EXPECTED_CALL(SSL_get_error(SSL_Good_Ptr, IGNORED_NUM_ARG));
 
         tlsio_id->concrete_io_dowork(tlsio); // dowork_poll_dns (done)
         tlsio_id->concrete_io_dowork(tlsio); // dowork_poll_socket (done)
         tlsio_id->concrete_io_dowork(tlsio); // dowork_poll_open_ssl (done)
+        ASSERT_IO_OPEN_CALLBACK(true, IO_OPEN_ERROR);
+
+        // Close the error'd tlsio
+        tlsio_id->concrete_io_close(tlsio, on_io_close_complete, NULL);
+
+        // Retry the open
+        open_result = tlsio_id->concrete_io_open(tlsio, on_io_open_complete, IO_OPEN_COMPLETE_CONTEXT, on_bytes_received,
+            IO_BYTES_RECEIVED_CONTEXT, on_io_error, IO_ERROR_CONTEXT);
+        ASSERT_ARE_EQUAL(int, open_result, 0);
+
+        tlsio_id->concrete_io_dowork(tlsio); // dowork_poll_dns (done)
+        tlsio_id->concrete_io_dowork(tlsio); // dowork_poll_socket (done)
+
+        umock_c_reset_all_calls();
+
+        reset_callback_context_records();
 
         ///act
-        //
+        tlsio_id->concrete_io_dowork(tlsio);
+
 
         ///assert
-        // Check that we got the on_open callback
+        // Check that we got the on_open callback for our retry
         ASSERT_IO_OPEN_CALLBACK(true, IO_OPEN_OK);
-        //ASSERT_ARE_EQUAL(char_ptr, umock_c_get_expected_calls(), umock_c_get_actual_calls());
 
         ///cleanup
         tlsio_id->concrete_io_close(tlsio, on_io_close_complete, NULL);
@@ -609,9 +626,9 @@ static void use_negative_mocks()
         STRICT_EXPECTED_CALL(gballoc_free(IGNORED_NUM_ARG));
         STRICT_EXPECTED_CALL(gballoc_free(IGNORED_NUM_ARG));
         STRICT_EXPECTED_CALL(gballoc_free(IGNORED_NUM_ARG));
+        tlsio_id->concrete_io_dowork(tlsio);
 
         ///act
-        tlsio_id->concrete_io_dowork(tlsio);
         tlsio_id->concrete_io_dowork(tlsio);
 
         ///assert
@@ -995,13 +1012,15 @@ static void use_negative_mocks()
             }
 
             ///act
+            // Ordinarily act should have only one call, but because this adapter is
+            // fully asynchronous the unhappy paths for completing the Open process are
+            // spread over multiple dowork calls.
             tlsio_id->concrete_io_dowork(tlsio); // dowork_poll_dns (waiting)
             tlsio_id->concrete_io_dowork(tlsio); // dowork_poll_dns (done)
             tlsio_id->concrete_io_dowork(tlsio); // dowork_poll_socket (waiting)
             tlsio_id->concrete_io_dowork(tlsio); // dowork_poll_socket (done)
-            tlsio_id->concrete_io_dowork(tlsio); // dowork_poll_open_ssl (waiting SSL_ERROR_WANT_READ)
-            tlsio_id->concrete_io_dowork(tlsio); // dowork_poll_open_ssl (waiting SSL_ERROR_WANT_WRITE)
-            tlsio_id->concrete_io_dowork(tlsio); // dowork_poll_open_ssl (done)
+            tlsio_id->concrete_io_dowork(tlsio); // dowork_poll_open_ssl (timeout)
+            tlsio_id->concrete_io_dowork(tlsio); // dowork_poll_open_ssl (hard failure)
 
             ///assert
             // A few of the iterations have no failures
@@ -1061,14 +1080,14 @@ static void use_negative_mocks()
 
         // dowork_poll_open_ssl (done)
         STRICT_EXPECTED_CALL(SSL_connect(SSL_Good_Ptr)).SetReturn(SSL_CONNECT_SUCCESS);
-
-        ///act
         tlsio_id->concrete_io_dowork(tlsio); // dowork_poll_dns (waiting)
         tlsio_id->concrete_io_dowork(tlsio); // dowork_poll_dns (done)
         tlsio_id->concrete_io_dowork(tlsio); // dowork_poll_socket (waiting)
         tlsio_id->concrete_io_dowork(tlsio); // dowork_poll_socket (done)
         tlsio_id->concrete_io_dowork(tlsio); // dowork_poll_open_ssl (waiting SSL_ERROR_WANT_READ)
         tlsio_id->concrete_io_dowork(tlsio); // dowork_poll_open_ssl (waiting SSL_ERROR_WANT_WRITE)
+
+        ///act
         tlsio_id->concrete_io_dowork(tlsio); // dowork_poll_open_ssl (done)
         //
 
@@ -1149,16 +1168,16 @@ static void use_negative_mocks()
         ///arrange
         const IO_INTERFACE_DESCRIPTION* tlsio_id = tlsio_get_interface_description();
         CONCRETE_IO_HANDLE tlsio = tlsio_id->concrete_io_create(&good_config);
+        int open_result = tlsio_id->concrete_io_open(tlsio, on_io_open_complete, IO_OPEN_COMPLETE_CONTEXT, on_bytes_received,
+            IO_BYTES_RECEIVED_CONTEXT, on_io_error, IO_ERROR_CONTEXT);
+        ASSERT_ARE_EQUAL(int, open_result, 0);
         reset_callback_context_records();
 
         ///act
-        int open_result = tlsio_id->concrete_io_open(tlsio, on_io_open_complete, IO_OPEN_COMPLETE_CONTEXT, on_bytes_received,
-            IO_BYTES_RECEIVED_CONTEXT, on_io_error, IO_ERROR_CONTEXT);
         int open_result_2 = tlsio_id->concrete_io_open(tlsio, on_io_open_complete, IO_OPEN_COMPLETE_CONTEXT, on_bytes_received,
             IO_BYTES_RECEIVED_CONTEXT, on_io_error, IO_ERROR_CONTEXT);
 
         ///assert
-        ASSERT_ARE_EQUAL(int, open_result, 0);
         ASSERT_ARE_NOT_EQUAL_WITH_MSG(int, open_result_2, 0, "Unexpected 2nd open success");
         ASSERT_IO_OPEN_CALLBACK(true, IO_OPEN_ERROR);
 
@@ -1255,8 +1274,8 @@ static void use_negative_mocks()
             ///arrange
             CONCRETE_IO_HANDLE tlsio = tlsio_id->concrete_io_create(&good_config);
             ASSERT_IS_NOT_NULL(tlsio);
-            ///act
 
+            ///act
             int result = tlsio_id->concrete_io_setoption(p0[i] ? tlsio : NULL, p1[i], p2[i]);
 
             ///assert
@@ -1405,7 +1424,6 @@ static void use_negative_mocks()
         STRICT_EXPECTED_CALL(gballoc_free(IGNORED_NUM_ARG));  // copy hostname
         STRICT_EXPECTED_CALL(gballoc_free(IGNORED_NUM_ARG));  // singlylinkedlist_create
         STRICT_EXPECTED_CALL(gballoc_free(IGNORED_NUM_ARG));  // concrete_io struct
-        //
 
         ///act
         tlsio_id->concrete_io_destroy(result);
