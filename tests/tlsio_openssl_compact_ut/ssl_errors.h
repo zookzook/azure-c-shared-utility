@@ -49,10 +49,14 @@ static int my_SSL_get_error(SSL* ssl, int callReturn)
         return SSL_ERROR_WANT_WRITE;
     case SSL_ERROR__plus__HARD_FAIL:
         return SSL_ERROR_HARD_FAIL;
-    default:
-        ASSERT_FAIL("bad enum");
-        return -1;
     }
+    // This foolish-looking code dances around conflicting warnings
+    // in the C and C++ compilers about no return path
+    if (callReturn <= 0)
+    {
+        ASSERT_FAIL("bad enum");
+    }
+    return 0;
 }
 
 int my_SSL_read(SSL* ssl, uint8_t* buffer, size_t size)
