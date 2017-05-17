@@ -239,19 +239,17 @@ BEGIN_TEST_SUITE(tlsio_openssl_compact_unittests)
 
         // Send the message to eventually fail on
         int send_result = tlsio_id->concrete_io_send(tlsio, SSL_send_buffer,
-            SSL_send_message_size, on_io_send_complete, IO_SEND_COMPLETE_CONTEXT);
+            SSL_FAIL_ME_MESSAGE_SIZE, on_io_send_complete, IO_SEND_COMPLETE_CONTEXT);
         ASSERT_ARE_EQUAL(int, 0, send_result);
 
+        umock_c_reset_all_calls();
         reset_callback_context_records();
-        // Set up the send to fail
-        STRICT_EXPECTED_CALL(SSL_write(SSL_Good_Ptr, IGNORED_PTR_ARG, SSL_SHORT_MESSAGE_SIZE)).SetReturn(SSL_ERROR__plus__HARD_FAIL);
-
+        // Make sure the io fails
         tlsio_id->concrete_io_dowork(tlsio);
         ASSERT_IO_ERROR_CALLBACK(true);
 
-
         // Close the error'd tlsio
-        tlsio_id->concrete_io_close(tlsio, on_io_close_complete, NULL);
+        tlsio_id->concrete_io_close(tlsio, on_io_close_complete, IO_CLOSE_COMPLETE_CONTEXT);
         ASSERT_IO_CLOSE_CALLBACK(true);
 
         // Retry the open
@@ -267,7 +265,6 @@ BEGIN_TEST_SUITE(tlsio_openssl_compact_unittests)
         ///act
         // dowork_poll_open_ssl (done)
         tlsio_id->concrete_io_dowork(tlsio);
-
 
         ///assert
         // Check that we got the on_open callback for our retry
@@ -306,16 +303,12 @@ BEGIN_TEST_SUITE(tlsio_openssl_compact_unittests)
         open_result = tlsio_id->concrete_io_open(tlsio, on_io_open_complete, IO_OPEN_COMPLETE_CONTEXT, on_bytes_received,
             IO_BYTES_RECEIVED_CONTEXT, on_io_error, IO_ERROR_CONTEXT);
         ASSERT_ARE_EQUAL(int, open_result, 0);
-
         tlsio_id->concrete_io_dowork(tlsio); // dowork_poll_dns (done)
         tlsio_id->concrete_io_dowork(tlsio); // dowork_poll_socket (done)
-
         reset_callback_context_records();
 
         ///act
-        // dowork_poll_open_ssl (done)
         tlsio_id->concrete_io_dowork(tlsio);
-
 
         ///assert
         // Check that we got the on_open callback for our retry
@@ -595,7 +588,6 @@ BEGIN_TEST_SUITE(tlsio_openssl_compact_unittests)
 
         STRICT_EXPECTED_CALL(SSL_read(SSL_Good_Ptr, IGNORED_PTR_ARG, IGNORED_NUM_ARG)).SetReturn(0);
         STRICT_EXPECTED_CALL(get_time(NULL)).SetReturn(TIMEOUT_END_TIME_TIMEOUT);
-        //STRICT_EXPECTED_CALL(SSL_write(SSL_Good_Ptr, IGNORED_PTR_ARG, SSL_SHORT_MESSAGE_SIZE));
         STRICT_EXPECTED_CALL(gballoc_free(IGNORED_NUM_ARG));
         STRICT_EXPECTED_CALL(gballoc_free(IGNORED_NUM_ARG));
         STRICT_EXPECTED_CALL(gballoc_free(IGNORED_NUM_ARG));
@@ -1059,17 +1051,14 @@ BEGIN_TEST_SUITE(tlsio_openssl_compact_unittests)
             {
                 umock_c_negative_tests_fail_call(i);
             }
+            tlsio_id->concrete_io_dowork(tlsio); 
+            tlsio_id->concrete_io_dowork(tlsio);
+            tlsio_id->concrete_io_dowork(tlsio);
+            tlsio_id->concrete_io_dowork(tlsio); 
+            tlsio_id->concrete_io_dowork(tlsio);
 
             ///act
-            // Ordinarily act should have only one call, but because this adapter is
-            // fully asynchronous the unhappy paths for completing the Open process are
-            // spread over multiple dowork calls.
-            tlsio_id->concrete_io_dowork(tlsio); // dowork_poll_dns (waiting)
-            tlsio_id->concrete_io_dowork(tlsio); // dowork_poll_dns (done)
-            tlsio_id->concrete_io_dowork(tlsio); // dowork_poll_socket (waiting)
-            tlsio_id->concrete_io_dowork(tlsio); // dowork_poll_socket (done)
-            tlsio_id->concrete_io_dowork(tlsio); // dowork_poll_open_ssl (timeout)
-            tlsio_id->concrete_io_dowork(tlsio); // dowork_poll_open_ssl (hard failure)
+            tlsio_id->concrete_io_dowork(tlsio);
 
             ///assert
             // A few of the iterations have no failures

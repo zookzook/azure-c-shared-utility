@@ -33,6 +33,7 @@ size_t SSL_send_message_size = sizeof(SSL_send_buffer) - 1;
 #define SSL_TEST_MESSAGE_SIZE 64
 #define SSL_WRITE_MAX_TEST_SIZE 60
 #define SSL_SHORT_MESSAGE_SIZE 30
+#define SSL_FAIL_ME_MESSAGE_SIZE 1700
 const char SSL_TEST_MESSAGE[] = "0000000000111111111122222222223333333333444444444455555555556789";
 
 
@@ -77,13 +78,20 @@ int my_SSL_write(SSL* ssl, uint8_t* buffer, size_t size)
     (void)buffer; // not used
     ASSERT_ARE_EQUAL(int, (int)ssl, (int)SSL_Good_Ptr);
     int result;
-    if (size > SSL_WRITE_MAX_TEST_SIZE)
+    if (size == SSL_FAIL_ME_MESSAGE_SIZE)
     {
-        result = SSL_WRITE_MAX_TEST_SIZE;
+        result = SSL_ERROR__plus__HARD_FAIL;
     }
     else
     {
-        result = size;
+        if (size > SSL_WRITE_MAX_TEST_SIZE)
+        {
+            result = SSL_WRITE_MAX_TEST_SIZE;
+        }
+        else
+        {
+            result = size;
+        }
     }
     return result;
 }
