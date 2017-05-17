@@ -146,11 +146,12 @@ BEGIN_TEST_SUITE(tlsio_openssl_compact_unittests)
         REGISTER_GLOBAL_MOCK_RETURNS(SSL_new, SSL_Good_Ptr, NULL);
         REGISTER_GLOBAL_MOCK_RETURNS(SSL_CTX_new, SSL_Good_Context_Ptr, NULL);
         REGISTER_GLOBAL_MOCK_RETURNS(SSL_set_fd, SSL_SET_FD_SUCCESS, SSL_SET_FD_FAILURE);
-        REGISTER_GLOBAL_MOCK_RETURNS(SSL_connect, SSL_CONNECT_SUCCESS, SSL_ERROR);
+        REGISTER_GLOBAL_MOCK_RETURNS(SSL_connect, SSL_CONNECT_SUCCESS, SSL_ERROR__plus__HARD_FAIL);
         REGISTER_GLOBAL_MOCK_RETURNS(SSL_get_error, SSL_ERROR_WANT_READ, SSL_ERROR_HARD_FAIL);
         REGISTER_GLOBAL_MOCK_RETURNS(SSL_read, DOWORK_RECV_XFER_BUFFER_SIZE, SSL_READ_NO_DATA);
         REGISTER_GLOBAL_MOCK_HOOK(SSL_write, my_SSL_write);
         REGISTER_GLOBAL_MOCK_HOOK(SSL_read, my_SSL_read);
+        REGISTER_GLOBAL_MOCK_HOOK(SSL_get_error, my_SSL_get_error);
 
         /**
          * Or you can combine, for example, in the success case malloc will call my_gballoc_malloc, and for
@@ -226,8 +227,8 @@ BEGIN_TEST_SUITE(tlsio_openssl_compact_unittests)
         umock_c_reset_all_calls();
 
         // dowork_poll_open_ssl (done)
-        STRICT_EXPECTED_CALL(SSL_connect(SSL_Good_Ptr)).SetReturn(SSL_ERROR);
-        STRICT_EXPECTED_CALL(SSL_get_error(SSL_Good_Ptr, IGNORED_NUM_ARG)).SetReturn(SSL_ERROR_HARD_FAIL);
+        STRICT_EXPECTED_CALL(SSL_connect(SSL_Good_Ptr)).SetReturn(SSL_ERROR__plus__HARD_FAIL);
+        STRICT_EXPECTED_CALL(SSL_get_error(SSL_Good_Ptr, IGNORED_NUM_ARG));
 
         tlsio_id->concrete_io_dowork(tlsio); // dowork_poll_dns (done)
         tlsio_id->concrete_io_dowork(tlsio); // dowork_poll_socket (done)
@@ -420,13 +421,13 @@ BEGIN_TEST_SUITE(tlsio_openssl_compact_unittests)
         STRICT_EXPECTED_CALL(SSL_set_fd(IGNORED_PTR_ARG, IGNORED_NUM_ARG));
 
         // dowork_poll_open_ssl (waiting SSL_ERROR_WANT_READ)
-        STRICT_EXPECTED_CALL(SSL_connect(SSL_Good_Ptr)).SetReturn(SSL_ERROR);
-        STRICT_EXPECTED_CALL(SSL_get_error(SSL_Good_Ptr, SSL_ERROR)).SetReturn(SSL_ERROR_WANT_READ);
+        STRICT_EXPECTED_CALL(SSL_connect(SSL_Good_Ptr)).SetReturn(SSL_ERROR__plus__WANT_READ);
+        STRICT_EXPECTED_CALL(SSL_get_error(SSL_Good_Ptr, SSL_ERROR__plus__WANT_READ));
         STRICT_EXPECTED_CALL(get_time(NULL));
 
         // dowork_poll_open_ssl (waiting SSL_ERROR_WANT_WRITE)
-        STRICT_EXPECTED_CALL(SSL_connect(SSL_Good_Ptr)).SetReturn(SSL_ERROR);
-        STRICT_EXPECTED_CALL(SSL_get_error(SSL_Good_Ptr, SSL_ERROR)).SetReturn(SSL_ERROR_WANT_WRITE);
+        STRICT_EXPECTED_CALL(SSL_connect(SSL_Good_Ptr)).SetReturn(SSL_ERROR__plus__WANT_WRITE);
+        STRICT_EXPECTED_CALL(SSL_get_error(SSL_Good_Ptr, SSL_ERROR__plus__WANT_WRITE));
         STRICT_EXPECTED_CALL(get_time(NULL));
 
         // dowork_poll_open_ssl (done)
@@ -551,8 +552,8 @@ BEGIN_TEST_SUITE(tlsio_openssl_compact_unittests)
 
         STRICT_EXPECTED_CALL(SSL_read(SSL_Good_Ptr, IGNORED_PTR_ARG, IGNORED_NUM_ARG)).SetReturn(0);
         STRICT_EXPECTED_CALL(get_time(NULL)).SetReturn(0);
-        STRICT_EXPECTED_CALL(SSL_write(SSL_Good_Ptr, IGNORED_PTR_ARG, SSL_SHORT_MESSAGE_SIZE)).SetReturn(SSL_ERROR);
-        STRICT_EXPECTED_CALL(SSL_get_error(SSL_Good_Ptr, IGNORED_NUM_ARG)).SetReturn(SSL_ERROR_HARD_FAIL);
+        STRICT_EXPECTED_CALL(SSL_write(SSL_Good_Ptr, IGNORED_PTR_ARG, SSL_SHORT_MESSAGE_SIZE)).SetReturn(SSL_ERROR__plus__HARD_FAIL);
+        STRICT_EXPECTED_CALL(SSL_get_error(SSL_Good_Ptr, IGNORED_NUM_ARG));
         STRICT_EXPECTED_CALL(gballoc_free(IGNORED_NUM_ARG));
         STRICT_EXPECTED_CALL(gballoc_free(IGNORED_NUM_ARG));
         STRICT_EXPECTED_CALL(gballoc_free(IGNORED_NUM_ARG));
@@ -958,13 +959,13 @@ BEGIN_TEST_SUITE(tlsio_openssl_compact_unittests)
         fails[k++] = true; STRICT_EXPECTED_CALL(SSL_set_fd(IGNORED_PTR_ARG, IGNORED_NUM_ARG));
 
         // dowork_poll_open_ssl (timeout)
-        fails[k++] = false; STRICT_EXPECTED_CALL(SSL_connect(SSL_Good_Ptr)).SetReturn(SSL_ERROR);
-        fails[k++] = false; STRICT_EXPECTED_CALL(SSL_get_error(SSL_Good_Ptr, SSL_ERROR)).SetReturn(SSL_ERROR_WANT_READ);
+        fails[k++] = false; STRICT_EXPECTED_CALL(SSL_connect(SSL_Good_Ptr)).SetReturn(SSL_ERROR__plus__WANT_READ);
+        fails[k++] = false; STRICT_EXPECTED_CALL(SSL_get_error(SSL_Good_Ptr, SSL_ERROR__plus__WANT_READ));
         fails[k++] = true; STRICT_EXPECTED_CALL(get_time(NULL));
 
         // dowork_poll_open_ssl (hard failure)
-        fails[k++] = false; STRICT_EXPECTED_CALL(SSL_connect(SSL_Good_Ptr)).SetReturn(SSL_ERROR);
-        fails[k++] = true; STRICT_EXPECTED_CALL(SSL_get_error(SSL_Good_Ptr, SSL_ERROR));
+        fails[k++] = false; STRICT_EXPECTED_CALL(SSL_connect(SSL_Good_Ptr)).SetReturn(SSL_ERROR__plus__HARD_FAIL);
+        fails[k++] = true; STRICT_EXPECTED_CALL(SSL_get_error(SSL_Good_Ptr, SSL_ERROR__plus__HARD_FAIL));
 
         umock_c_negative_tests_snapshot();
 
@@ -1042,13 +1043,13 @@ BEGIN_TEST_SUITE(tlsio_openssl_compact_unittests)
         STRICT_EXPECTED_CALL(SSL_set_fd(IGNORED_PTR_ARG, IGNORED_NUM_ARG));
 
         // dowork_poll_open_ssl (waiting SSL_ERROR_WANT_READ)
-        STRICT_EXPECTED_CALL(SSL_connect(SSL_Good_Ptr)).SetReturn(SSL_ERROR);
-        STRICT_EXPECTED_CALL(SSL_get_error(SSL_Good_Ptr, SSL_ERROR)).SetReturn(SSL_ERROR_WANT_READ);
+        STRICT_EXPECTED_CALL(SSL_connect(SSL_Good_Ptr)).SetReturn(SSL_ERROR__plus__WANT_READ);
+        STRICT_EXPECTED_CALL(SSL_get_error(SSL_Good_Ptr, SSL_ERROR__plus__WANT_READ));
         STRICT_EXPECTED_CALL(get_time(NULL));
 
         // dowork_poll_open_ssl (waiting SSL_ERROR_WANT_WRITE)
-        STRICT_EXPECTED_CALL(SSL_connect(SSL_Good_Ptr)).SetReturn(SSL_ERROR);
-        STRICT_EXPECTED_CALL(SSL_get_error(SSL_Good_Ptr, SSL_ERROR)).SetReturn(SSL_ERROR_WANT_WRITE);
+        STRICT_EXPECTED_CALL(SSL_connect(SSL_Good_Ptr)).SetReturn(SSL_ERROR__plus__WANT_WRITE);
+        STRICT_EXPECTED_CALL(SSL_get_error(SSL_Good_Ptr, SSL_ERROR__plus__WANT_WRITE));
         STRICT_EXPECTED_CALL(get_time(NULL));
 
         // dowork_poll_open_ssl (done)

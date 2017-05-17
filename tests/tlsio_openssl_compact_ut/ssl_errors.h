@@ -5,12 +5,15 @@
 // is broken out for readability. 
 
 // 
-#define SSL_ERROR -1
-#define SSL_CONNECT_SUCCESS 0
+#define SSL_ERROR__plus__WANT_READ -2
+#define SSL_ERROR__plus__WANT_WRITE -3
+#define SSL_ERROR__plus__HARD_FAIL -4
+
 #define SSL_ERROR_HARD_FAIL 99
 #define SSL_Good_Ptr (void*)22
 #define SSL_Good_Context_Ptr (SSL_CTX*)33
 #define SSL_Good_Socket 44
+#define SSL_CONNECT_SUCCESS 0
 #define SSL_SET_FD_SUCCESS 1
 #define SSL_SET_FD_FAILURE 0
 #define SSL_READ_NO_DATA 0
@@ -33,6 +36,24 @@ size_t SSL_send_message_size = sizeof(SSL_send_buffer) - 1;
 const char SSL_TEST_MESSAGE[] = "0000000000111111111122222222223333333333444444444455555555556789";
 
 
+// The fact that SSL_get_error requires the previous error allows a mocking strategy that
+// permits encoding the extended error into the main failure
+static int my_SSL_get_error(SSL* ssl, int callReturn)
+{
+    (void)ssl;
+    switch (callReturn)
+    {
+    case SSL_ERROR__plus__WANT_READ:
+        return SSL_ERROR_WANT_READ;
+    case SSL_ERROR__plus__WANT_WRITE:
+        return SSL_ERROR_WANT_WRITE;
+    case SSL_ERROR__plus__HARD_FAIL:
+        return SSL_ERROR_HARD_FAIL;
+    default:
+        ASSERT_FAIL("bad enum");
+        return -1;
+    }
+}
 
 int my_SSL_read(SSL* ssl, uint8_t* buffer, size_t size)
 {
