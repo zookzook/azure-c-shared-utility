@@ -229,6 +229,55 @@ BEGIN_TEST_SUITE(tlsio_openssl_compact_unittests)
         ASSERT_IO_OPEN_CALLBACK(true, IO_OPEN_OK);
     }
 
+    TEST_FUNCTION(tlsio_openssl_compact__retry_open_after_io_failure__succeeds)
+    {
+        ///arrange
+        reset_callback_context_records();
+        const IO_INTERFACE_DESCRIPTION* tlsio_id = tlsio_get_interface_description();
+        CONCRETE_IO_HANDLE tlsio = tlsio_id->concrete_io_create(&good_config);
+        open_helper(tlsio_id, tlsio);
+
+        // Send the message to eventually fail on
+        int send_result = tlsio_id->concrete_io_send(tlsio, SSL_send_buffer,
+            SSL_send_message_size, on_io_send_complete, IO_SEND_COMPLETE_CONTEXT);
+        ASSERT_ARE_EQUAL(int, 0, send_result);
+
+        reset_callback_context_records();
+        // Set up the send to fail
+        STRICT_EXPECTED_CALL(SSL_write(SSL_Good_Ptr, IGNORED_PTR_ARG, SSL_SHORT_MESSAGE_SIZE)).SetReturn(SSL_ERROR__plus__HARD_FAIL);
+
+        tlsio_id->concrete_io_dowork(tlsio);
+        ASSERT_IO_ERROR_CALLBACK(true);
+
+
+        // Close the error'd tlsio
+        tlsio_id->concrete_io_close(tlsio, on_io_close_complete, NULL);
+        ASSERT_IO_CLOSE_CALLBACK(true);
+
+        // Retry the open
+        int open_result = tlsio_id->concrete_io_open(tlsio, on_io_open_complete, IO_OPEN_COMPLETE_CONTEXT, on_bytes_received,
+            IO_BYTES_RECEIVED_CONTEXT, on_io_error, IO_ERROR_CONTEXT);
+        ASSERT_ARE_EQUAL(int, open_result, 0);
+
+        tlsio_id->concrete_io_dowork(tlsio); // dowork_poll_dns (done)
+        tlsio_id->concrete_io_dowork(tlsio); // dowork_poll_socket (done)
+
+        reset_callback_context_records();
+
+        ///act
+        // dowork_poll_open_ssl (done)
+        tlsio_id->concrete_io_dowork(tlsio);
+
+
+        ///assert
+        // Check that we got the on_open callback for our retry
+        ASSERT_IO_OPEN_CALLBACK(true, IO_OPEN_OK);
+
+        ///cleanup
+        tlsio_id->concrete_io_close(tlsio, on_io_close_complete, NULL);
+        tlsio_id->concrete_io_destroy(tlsio);
+    }
+
     /* Tests_SRS_TLSIO_OPENSSL_COMPACT_30_040: [ tlsio_openssl_compact_open shall succeed during a 'Failed open retry' as defined at the top of this document. ]*/
     TEST_FUNCTION(tlsio_openssl_compact__retry_open_after_open_failure__succeeds)
     {
@@ -253,6 +302,7 @@ BEGIN_TEST_SUITE(tlsio_openssl_compact_unittests)
         tlsio_id->concrete_io_close(tlsio, on_io_close_complete, NULL);
 
         // Retry the open
+        umock_c_reset_all_calls();
         open_result = tlsio_id->concrete_io_open(tlsio, on_io_open_complete, IO_OPEN_COMPLETE_CONTEXT, on_bytes_received,
             IO_BYTES_RECEIVED_CONTEXT, on_io_error, IO_ERROR_CONTEXT);
         ASSERT_ARE_EQUAL(int, open_result, 0);
@@ -260,11 +310,10 @@ BEGIN_TEST_SUITE(tlsio_openssl_compact_unittests)
         tlsio_id->concrete_io_dowork(tlsio); // dowork_poll_dns (done)
         tlsio_id->concrete_io_dowork(tlsio); // dowork_poll_socket (done)
 
-        umock_c_reset_all_calls();
-
         reset_callback_context_records();
 
         ///act
+        // dowork_poll_open_ssl (done)
         tlsio_id->concrete_io_dowork(tlsio);
 
 
