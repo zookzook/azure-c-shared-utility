@@ -35,19 +35,13 @@ typedef struct PENDING_SOCKET_IO_TAG
 
 #define MAX_VALID_PORT 0xffff
 
-// DOWORK_TRANSFER_BUFFER_SIZE is not very important because if the message is bigger
-// then the framework just calls dowork repeatedly until it gets everything. So
-// a bigger buffer would just use memory without buying anything.
-#define DOWORK_TRANSFER_BUFFER_SIZE 64
+// The TLSIO_RECEIVE_BUFFER_SIZE has very little effect on performance, and is kept small
+// to minimize memory consumption.
+#ifndef TLSIO_RECEIVE_BUFFER_SIZE
+#define TLSIO_RECEIVE_BUFFER_SIZE 64
+#endif // !TLSIO_RECEIVE_BUFFER_SIZE
 
 
-// This adapter keeps itself in either TLSIO_STATE_OPEN or
-// TLSIO_STATE_NOT_OPEN. There are no internally inconsistent
-// states that would need to be labeled "error". Failures that
-// tell us that the SSL connection can no longer be trusted
-// cause the adapter to close the connection and release all
-// resources, at which point it is ready for Open to be called
-// again.
 typedef enum TLSIO_STATE_TAG
 {
     TLSIO_STATE_NOT_OPEN,
@@ -55,7 +49,7 @@ typedef enum TLSIO_STATE_TAG
     TLSIO_STATE_OPENING_WAITING_SOCKET,
     TLSIO_STATE_OPENING_WAITING_SSL,
     TLSIO_STATE_OPEN,
-    TLSIO_STATE_ERROR,      // Needs to be destroyed and recreated
+    TLSIO_STATE_ERROR,
 } TLSIO_STATE;
 
 // This structure definition is mirrored in the unit tests, so if you change
@@ -72,16 +66,12 @@ typedef struct TLS_IO_INSTANCE_TAG
     SSL* ssl;
     SSL_CTX* ssl_context;
     TLSIO_STATE tlsio_state;
-    uint32_t host_ipV4_address;
     DNS_ASYNC_HANDLE dns;
     char* hostname;
     uint16_t port;
     time_t operation_timeout_end_time;
-    char* certificate;
-    const char* x509certificate;
-    const char* x509privatekey;
     SOCKET_ASYNC_HANDLE sock;
-    SINGLYLINKEDLIST_HANDLE pending_io_list;
+    SINGLYLINKEDLIST_HANDLE pending_transmission_list;
 } TLS_IO_INSTANCE;
 
 #ifndef NO_LOGGING
@@ -96,11 +86,10 @@ static bool close_and_destroy_head_message(TLS_IO_INSTANCE* tls_io_instance, IO_
     tls_io_instance->operation_timeout_end_time = 0;
     if (send_result == IO_SEND_ERROR)
     {
-        tls_io_instance->tlsio_state = TLSIO_STATE_ERROR;
-        /* Codes_SRS_TLSIO_OPENSSL_COMPACT_30_094: [ If the send process encounters an internal error or calls on_send_complete with IO_SEND_ERROR due to either failure or timeout, it shall also call on_io_error and pass in the associated on_io_error_context. ]*/
+        /* Codes_SRS_TLSIO_30_095: [ If the send process fails before sending all of the bytes in an enqueued message, the tlsio_dowork shall call the message's on_send_complete along with its associated callback_context and IO_SEND_ERROR. ]*/
         tls_io_instance->on_io_error(tls_io_instance->on_io_error_context);
     }
-    LIST_ITEM_HANDLE head_pending_io = singlylinkedlist_get_head_item(tls_io_instance->pending_io_list);
+    LIST_ITEM_HANDLE head_pending_io = singlylinkedlist_get_head_item(tls_io_instance->pending_transmission_list);
     if (head_pending_io != NULL)
     {
         PENDING_SOCKET_IO* head_message = (PENDING_SOCKET_IO*)singlylinkedlist_item_get_value(head_pending_io);
@@ -109,7 +98,7 @@ static bool close_and_destroy_head_message(TLS_IO_INSTANCE* tls_io_instance, IO_
 
         free(head_message->bytes);
         free(head_message);
-        if (singlylinkedlist_remove(tls_io_instance->pending_io_list, head_pending_io) != 0)
+        if (singlylinkedlist_remove(tls_io_instance->pending_transmission_list, head_pending_io) != 0)
         {
             // This particular situation is a bizarre and unrecoverable internal error
             /* Codes_SRS_TLSIO_OPENSSL_COMPACT_30_094: [ If the send process encounters an internal error or calls on_send_complete with IO_SEND_ERROR due to either failure or timeout, it shall also call on_io_error and pass in the associated on_io_error_context. ]*/
@@ -233,29 +222,12 @@ void tlsio_openssl_destroy(CONCRETE_IO_HANDLE tls_io)
             tls_io_instance->hostname = NULL;
         }
 
-        // NOTE: certificate and pk handling will not be specified until x509 support is added.
-        // There is currently no way for any of these members to become non-NULL.
-        if (tls_io_instance->certificate != NULL)
-        {
-            free(tls_io_instance->certificate);
-            tls_io_instance->certificate = NULL;
-        }
-        if (tls_io_instance->x509certificate != NULL)
-        {
-            free((void*)tls_io_instance->x509certificate);
-            tls_io_instance->x509certificate = NULL;
-        }
-        if (tls_io_instance->x509privatekey != NULL)
-        {
-            free((void*)tls_io_instance->x509privatekey);
-            tls_io_instance->x509privatekey = NULL;
-        }
-        if (tls_io_instance->pending_io_list != NULL)
+        if (tls_io_instance->pending_transmission_list != NULL)
         {
             /* Pending IOs were cleared in internal_close */
 
-            singlylinkedlist_destroy(tls_io_instance->pending_io_list);
-            tls_io_instance->pending_io_list = NULL;
+            singlylinkedlist_destroy(tls_io_instance->pending_transmission_list);
+            tls_io_instance->pending_transmission_list = NULL;
         }
 
         /* Codes_SRS_TLSIO_OPENSSL_COMPACT_30_021: [ The tlsio_openssl_compact_destroy shall release all allocated resources and then release tlsio_handle. ]*/
@@ -304,13 +276,12 @@ CONCRETE_IO_HANDLE tlsio_openssl_create(void* io_create_parameters)
                 {
                     memset(result, 0, sizeof(TLS_IO_INSTANCE));
                     result->struct_size = sizeof(TLS_IO_INSTANCE);
-                    result->host_ipV4_address = 0;
                     result->port = (uint16_t)tls_io_config->port;
                     result->tlsio_state = TLSIO_STATE_NOT_OPEN;
                     result->sock = SOCKET_ASYNC_INVALID_SOCKET;
                     result->hostname = NULL;
                     result->dns = NULL;
-                    result->pending_io_list = NULL;
+                    result->pending_transmission_list = NULL;
                     result->operation_timeout_end_time = 0;
                     /* Codes_SRS_TLSIO_OPENSSL_COMPACT_30_016: [ tlsio_openssl_compact_create shall make a copy of the hostname member of io_create_parameters to allow deletion of hostname immediately after the call. ]*/
                     int ms_result = mallocAndStrcpy_s(&result->hostname, tls_io_config->hostname);
@@ -324,8 +295,8 @@ CONCRETE_IO_HANDLE tlsio_openssl_create(void* io_create_parameters)
                     else
                     {
                         // Create the message queue
-                        result->pending_io_list = singlylinkedlist_create();
-                        if (result->pending_io_list == NULL)
+                        result->pending_transmission_list = singlylinkedlist_create();
+                        if (result->pending_transmission_list == NULL)
                         {
                             /* Codes_SRS_TLSIO_OPENSSL_COMPACT_30_011: [ If any resource allocation fails, tlsio_openssl_compact_create shall return NULL. ]*/
                             LogError("Failed singlylinkedlist_create");
@@ -557,7 +528,7 @@ int tlsio_openssl_send(CONCRETE_IO_HANDLE tls_io, const void* buffer, size_t siz
                             {
                                 (void)memcpy(pending_socket_io->bytes, buffer, size);
                             }
-                            if (singlylinkedlist_add(tls_io_instance->pending_io_list, pending_socket_io) == NULL)
+                            if (singlylinkedlist_add(tls_io_instance->pending_transmission_list, pending_socket_io) == NULL)
                             {
                                 /* Codes_SRS_TLSIO_OPENSSL_COMPACT_30_064: [ If the supplied message cannot be enqueued for transmission, tlsio_openssl_compact_send shall return FAILURE. ]*/
                                 LogError("Unable to add socket to pending list.");
@@ -585,7 +556,7 @@ static void dowork_read(TLS_IO_INSTANCE* tls_io_instance)
     // a bigger buffer would just use memory without buying anything.
     // Putting this buffer in a small function also allows it to exist on the stack
     // rather than adding to heap fragmentation.
-    unsigned char buffer[DOWORK_TRANSFER_BUFFER_SIZE];
+    unsigned char buffer[TLSIO_RECEIVE_BUFFER_SIZE];
     int rcv_bytes;
 
     if (tls_io_instance->tlsio_state == TLSIO_STATE_OPEN)
@@ -654,7 +625,7 @@ static int create_ssl(TLS_IO_INSTANCE* tls_io_instance)
 
 static void dowork_send(TLS_IO_INSTANCE* tls_io_instance)
 {
-    LIST_ITEM_HANDLE first_pending_io = singlylinkedlist_get_head_item(tls_io_instance->pending_io_list);
+    LIST_ITEM_HANDLE first_pending_io = singlylinkedlist_get_head_item(tls_io_instance->pending_transmission_list);
     if (first_pending_io != NULL)
     {
         PENDING_SOCKET_IO* pending_message = (PENDING_SOCKET_IO*)singlylinkedlist_item_get_value(first_pending_io);
@@ -729,10 +700,10 @@ static void dowork_poll_dns(TLS_IO_INSTANCE* tls_io_instance)
 
     if (dns_is_complete)
     {
-        tls_io_instance->host_ipV4_address = dns_async_get_ipv4(tls_io_instance->dns);
+        uint32_t host_ipV4_address = dns_async_get_ipv4(tls_io_instance->dns);
         dns_async_destroy(tls_io_instance->dns);
         tls_io_instance->dns = NULL;
-        if (tls_io_instance->host_ipV4_address == 0)
+        if (host_ipV4_address == 0)
         {
             // Transition to TSLIO_STATE_ERROR
             /* Codes_SRS_TLSIO_OPENSSL_COMPACT_30_082: [ If the connection process fails for any reason, tlsio_openssl_compact_dowork shall log an error and call on_io_open_complete with the on_io_open_complete_context parameter provided in tlsio_openssl_compact_open and IO_OPEN_ERROR. ]*/
@@ -741,7 +712,7 @@ static void dowork_poll_dns(TLS_IO_INSTANCE* tls_io_instance)
         }
         else
         {
-            SOCKET_ASYNC_HANDLE sock = socket_async_create(tls_io_instance->host_ipV4_address, tls_io_instance->port, false, NULL);
+            SOCKET_ASYNC_HANDLE sock = socket_async_create(host_ipV4_address, tls_io_instance->port, false, NULL);
             if (sock < 0)
             {
                 // This is a communication interruption rather than a program bug
@@ -961,3 +932,6 @@ const IO_INTERFACE_DESCRIPTION* tlsio_get_interface_description(void)
 {
     return &tlsio_openssl_interface_description;
 }
+
+#ifdef TLSIO_STATE_VERIFICATION_ENABLE
+#endif
