@@ -1196,35 +1196,64 @@ BEGIN_TEST_SUITE(tlsio_openssl_compact_unittests)
 		assert_gballoc_checks();
 	}
 
-    /* Tests_SRS_TLSIO_30_035: [ On tlsio_open success the adapter shall enter TLSIO_STATE_EX_OPENING and return 0. ]*/
-    TEST_FUNCTION(tlsio_openssl_compact__open__succeeds)
-    {
-        ///arrange
-        const IO_INTERFACE_DESCRIPTION* tlsio_id = tlsio_get_interface_description();
-        CONCRETE_IO_HANDLE tlsio = tlsio_id->concrete_io_create(&good_config);
-        umock_c_reset_all_calls();
-        reset_callback_context_records();
+	/* Tests_SRS_TLSIO_30_035: [ On tlsio_open success the adapter shall enter TLSIO_STATE_EX_OPENING and return 0. ]*/
+	TEST_FUNCTION(tlsio_openssl_compact__open__succeeds)
+	{
+		///arrange
+		const IO_INTERFACE_DESCRIPTION* tlsio_id = tlsio_get_interface_description();
+		CONCRETE_IO_HANDLE tlsio = tlsio_id->concrete_io_create(&good_config);
+		umock_c_reset_all_calls();
+		reset_callback_context_records();
 
-        STRICT_EXPECTED_CALL(get_time(NULL));
-        STRICT_EXPECTED_CALL(dns_async_create(IGNORED_PTR_ARG, NULL));
+		STRICT_EXPECTED_CALL(get_time(NULL));
+		STRICT_EXPECTED_CALL(dns_async_create(IGNORED_PTR_ARG, NULL));
 
-        ///act
-        int open_result = tlsio_id->concrete_io_open(tlsio, on_io_open_complete, IO_OPEN_COMPLETE_CONTEXT, on_bytes_received,
-            IO_BYTES_RECEIVED_CONTEXT, on_io_error, IO_ERROR_CONTEXT);
+		///act
+		int open_result = tlsio_id->concrete_io_open(tlsio, on_io_open_complete, IO_OPEN_COMPLETE_CONTEXT, on_bytes_received,
+			IO_BYTES_RECEIVED_CONTEXT, on_io_error, IO_ERROR_CONTEXT);
 
-        ///assert
-        ASSERT_ARE_EQUAL(int, open_result, 0);
-        // Should not have made any callbacks yet
-        ASSERT_IO_OPEN_CALLBACK(false, IO_OPEN_ERROR);
-        ASSERT_ARE_EQUAL(char_ptr, umock_c_get_expected_calls(), umock_c_get_actual_calls());
+		///assert
+		ASSERT_ARE_EQUAL(int, open_result, 0);
+		// Should not have made any callbacks yet
+		ASSERT_IO_OPEN_CALLBACK(false, IO_OPEN_ERROR);
+		ASSERT_ARE_EQUAL(char_ptr, umock_c_get_expected_calls(), umock_c_get_actual_calls());
 
-        ///cleanup
-        tlsio_id->concrete_io_destroy(tlsio);
+		///cleanup
+		tlsio_id->concrete_io_destroy(tlsio);
 		assert_gballoc_checks();
 	}
 
-    /* Tests_SRS_TLSIO_30_037: [ If tlsio_openssl_compact_open has already been called, it shall log an error, and return FAILURE. ]*/
-    TEST_FUNCTION(tlsio_openssl_compact__open_unhappy_paths__fails)
+	/* Tests_SRS_TLSIO_30_038: [ If  tlsio_open  fails to enter TLSIO_STATE_EX_OPENING it shall return FAILURE. ]*/
+	/* Tests_SRS_TLSIO_30_039: [If the tlsio_open returns FAILURE it shall call on_io_open_complete with the provided on_io_open_complete_context and IO_OPEN_ERROR.]*/
+	TEST_FUNCTION(tlsio_openssl_compact__open_unhappy_path__fails)
+	{
+		///arrange
+		const IO_INTERFACE_DESCRIPTION* tlsio_id = tlsio_get_interface_description();
+		CONCRETE_IO_HANDLE tlsio = tlsio_id->concrete_io_create(&good_config);
+		umock_c_reset_all_calls();
+		reset_callback_context_records();
+
+		STRICT_EXPECTED_CALL(get_time(NULL));
+		STRICT_EXPECTED_CALL(dns_async_create(IGNORED_PTR_ARG, NULL)).SetReturn(NULL);
+
+		///act
+		int open_result = tlsio_id->concrete_io_open(tlsio, on_io_open_complete, IO_OPEN_COMPLETE_CONTEXT, on_bytes_received,
+			IO_BYTES_RECEIVED_CONTEXT, on_io_error, IO_ERROR_CONTEXT);
+
+		///assert
+		ASSERT_ARE_NOT_EQUAL(int, open_result, 0);
+		// Should get a failure callback
+		ASSERT_IO_OPEN_CALLBACK(true, IO_OPEN_ERROR);
+		ASSERT_ARE_EQUAL(char_ptr, umock_c_get_expected_calls(), umock_c_get_actual_calls());
+
+		///cleanup
+		tlsio_id->concrete_io_destroy(tlsio);
+		assert_gballoc_checks();
+	}
+
+    /* Tests_SRS_TLSIO_30_037: [ If the adapter is in any state other than TLSIO_STATE_EXT_CLOSED when tlsio_open is called, it shall log an error, and return FAILURE. ]*/
+	/* Tests_SRS_TLSIO_30_039: [If the tlsio_open returns FAILURE it shall call on_io_open_complete with the provided on_io_open_complete_context and IO_OPEN_ERROR.]*/
+	TEST_FUNCTION(tlsio_openssl_compact__open_wrong_state__fails)
     {
         ///arrange
         const IO_INTERFACE_DESCRIPTION* tlsio_id = tlsio_get_interface_description();
