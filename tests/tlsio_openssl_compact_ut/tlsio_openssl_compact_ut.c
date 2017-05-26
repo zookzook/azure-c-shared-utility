@@ -543,7 +543,7 @@ BEGIN_TEST_SUITE(tlsio_openssl_compact_unittests)
 		assert_gballoc_checks();
 	}
 
-    /* Tests_SRS_TLSIO_30_072: [ If tlsio_openssl_compact_dowork ever calls on_io_error, then subsequent calls to tlsio_openssl_compact_dowork shall do nothing. ]*/
+    /* Tests_SRS_TLSIO_30_071: [ If the adapter is in TLSIO_STATE_EXT_ERROR then  tlsio_dowork  shall do nothing. ]*/
     TEST_FUNCTION(tlsio_openssl_compact__dowork_send_post_error_do_nothing__succeeds)
     {
         ///arrange
@@ -561,6 +561,7 @@ BEGIN_TEST_SUITE(tlsio_openssl_compact_unittests)
         STRICT_EXPECTED_CALL(SSL_read(SSL_Good_Ptr, IGNORED_PTR_ARG, IGNORED_NUM_ARG)).SetReturn(0);
         STRICT_EXPECTED_CALL(get_time(NULL)).SetReturn(TIMEOUT_END_TIME_TIMEOUT);
         tlsio_id->concrete_io_dowork(tlsio);
+		tlsio_verify_internal_state(tlsio, TLSIO_STATE_EXT_ERROR, 0);
 
         reset_callback_context_records();
         umock_c_reset_all_calls();
@@ -569,7 +570,8 @@ BEGIN_TEST_SUITE(tlsio_openssl_compact_unittests)
         tlsio_id->concrete_io_dowork(tlsio);
 
         ///assert
-        ASSERT_NO_CALLBACKS();
+		tlsio_verify_internal_state(tlsio, TLSIO_STATE_EXT_ERROR, 0);
+		ASSERT_NO_CALLBACKS();
         ASSERT_ARE_EQUAL(char_ptr, umock_c_get_expected_calls(), umock_c_get_actual_calls());
 
         ///cleanup

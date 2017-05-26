@@ -847,8 +847,7 @@ void tlsio_openssl_dowork(CONCRETE_IO_HANDLE tls_io)
             dowork_send(tls_io_instance);
             break;
         case TLSIO_STATE_ERROR:
-            /* Codes_SRS_TLSIO_30_071: [ If the tlsio_openssl_compact adapter has returned a failure from tlsio_openssl_compact_open or if on_io_open_complete has been called with IO_OPEN_ERROR or IO_OPEN_CANCELLED, then tlsio_openssl_compact_dowork shall do nothing. ]*/
-            /* Codes_SRS_TLSIO_30_072: [ If tlsio_openssl_compact_dowork ever calls on_io_error, then subsequent calls to tlsio_openssl_compact_dowork shall do nothing. ]*/
+            /* Codes_SRS_TLSIO_30_071: [ If the adapter is in TLSIO_STATE_EXT_ERROR then  tlsio_dowork  shall do nothing. ]*/
             // There's nothing valid to do here but wait to be retried
             break;
         default:
