@@ -79,6 +79,11 @@ int tlsio_verify_internal_state(const CONCRETE_IO_HANDLE tlsio_in,
 		LogError("Unexpected callback values while not in TLSIO_STATE_CLOSED");
 		result = __FAILURE__;
 	}
+	else if (tlsio->hostname == NULL)
+	{
+		LogError("Hostname is NULL");
+		result = __FAILURE__;
+	}
 	else
 	{
 		result = 0;
