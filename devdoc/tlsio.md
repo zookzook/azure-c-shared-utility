@@ -101,8 +101,8 @@ The external state of the tlsio adapter is determined by which of the adapter's 
 * TLSIO_STATE_EXT_OPEN means that the `on_tlsio_open_complete` callback has returned with `IO_OPEN_OK`.
 * TLSIO_STATE_EXT_CLOSING means that the `tlsio_close` call has completed successfully but the `on_tlsio_close_complete` callback has not been performed.
 * TLSIO_STATE_EXT_ERROR is the state entered (or maintained) after either of the following occurrences:
-  * `on_tlsio_open_complete` has been called with `IO_OPEN_ERROR`
-  * `on_ tlsio _error` has been called
+  * `on_tlsio_open_complete` has been called with `IO_OPEN_ERROR` from `tlsio_dowork`
+  * `on_ tlsio _error` has been called from `tlsio_dowork`
 
 ## State Transitions
 This list shows the effect of the calls as a function of state with happy internal functionality. Unhappy functionality is not shown because it always ends in TLSIO_STATE_EXT_ERROR. The `tlsio_setoption` and `tlsio_getoptions` calls are not shown because they have no effect on state and are always allowed. Calls to `tlsio_send` also do not affect state, but are allowed only during TLSIO_STATE_EXT_OPEN.
@@ -280,7 +280,7 @@ const IO_INTERFACE_DESCRIPTION* tlsio_get_interface_description(void);
 
 
 ###   tlsio_create
-Implementation of `IO_CREATE concrete_io_create`
+Implementation of `concrete_io_create`
 ```c
 CONCRETE_IO_HANDLE tlsio_create(void* io_create_parameters);
 ```
@@ -301,7 +301,7 @@ CONCRETE_IO_HANDLE tlsio_create(void* io_create_parameters);
 
 
 ###   tlsio_destroy
-Implementation of `IO_DESTROY concrete_io_destroy`
+Implementation of `concrete_io_destroy`
 ```c
 void tlsio_destroy(CONCRETE_IO_HANDLE tlsio_handle);
 ```
@@ -310,11 +310,11 @@ void tlsio_destroy(CONCRETE_IO_HANDLE tlsio_handle);
 
 **SRS_TLSIO_30_021: [** The `tlsio_destroy` shall release all allocated resources and then release `tlsio_handle`. **]**
 
-**SRS_TLSIO_30_022: [** If `tlsio_close` has not been called before `tlsio_destroy`, `tlsio_destroy` shall additionally log an error. **]**
+**SRS_TLSIO_30_022: [** If the adapter is in any state other than TLSIO_STATE_EX_CLOSED when `tlsio_destroy` is called, the adapter shall log an error and enter TLSIO_STATE_EX_CLOSED before completing the destroy process. **]**
 
 
 ###   tlsio_open
-Implementation of `IO_OPEN concrete_io_open`
+Implementation of `concrete_io_open`
 
 ```c
 int tlsio_open(
@@ -353,7 +353,7 @@ int tlsio_open(
 
 
 ###   tlsio_close
-Implementation of `IO_CLOSE concrete_io_close`
+Implementation of `concrete_io_close`
 ```c
 int tlsio_close(CONCRETE_IO_HANDLE tlsio_handle, ON_IO_CLOSE_COMPLETE on_io_close_complete, void* callback_context);
 ```
@@ -376,7 +376,7 @@ int tlsio_close(CONCRETE_IO_HANDLE tlsio_handle, ON_IO_CLOSE_COMPLETE on_io_clos
 
 
 ###   tlsio_send
-Implementation of `IO_SEND concrete_io_send`
+Implementation of `concrete_io_send`
 ```c
 int tlsio_send(CONCRETE_IO_HANDLE tlsio_handle, const void* buffer, size_t size, ON_SEND_COMPLETE on_send_complete, void* callback_context);
 ```
@@ -394,7 +394,7 @@ int tlsio_send(CONCRETE_IO_HANDLE tlsio_handle, const void* buffer, size_t size,
 **SRS_TLSIO_30_065: [** If `tlsio_open` has not been called or the opening process has not been completed, `tlsio_send` shall log an error and return _FAILURE_. **]**
 
 ###   tlsio_dowork
-Implementation of `IO_DOWORK concrete_io_dowork`
+Implementation of `concrete_io_dowork`
 ```c
 void tlsio_dowork(CONCRETE_IO_HANDLE tlsio_handle);
 ```
