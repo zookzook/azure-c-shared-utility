@@ -350,8 +350,9 @@ BEGIN_TEST_SUITE(tlsio_openssl_compact_unittests)
 		assert_gballoc_checks();
 	}
 
-    /* Tests_SRS_TLSIO_30_056: [ If tlsio_openssl_compact_close is called while there are unsent messages in the queue, the tlsio_openssl_compact_close shall call each message's on_send_complete, passing its associated callback_context and IO_SEND_CANCELLED. ]*/
-    TEST_FUNCTION(tlsio_openssl_compact__close_with_unsent_messages__succeeds)
+	/* Tests_SRS_TLSIO_30_009: [ The phrase "enter TLSIO_STATE_EXT_CLOSING" means the adapter shall iterate through any unsent messages in the queue and shall delete each message after calling its on_send_complete with the associated callback_context and IO_SEND_CANCELLED . ]*/
+	/* Tests_SRS_TLSIO_30_056: [ On success the adapter shall enter TLSIO_STATE_EX_CLOSING. ]*/
+	TEST_FUNCTION(tlsio_openssl_compact__close_with_unsent_messages__succeeds)
     {
         ///arrange
         reset_callback_context_records();
@@ -386,9 +387,10 @@ BEGIN_TEST_SUITE(tlsio_openssl_compact_unittests)
         // End of arrange
 
         ///act
-        tlsio_id->concrete_io_close(tlsio, on_io_close_complete, IO_CLOSE_COMPLETE_CONTEXT);
+		int close_result = tlsio_id->concrete_io_close(tlsio, on_io_close_complete, IO_CLOSE_COMPLETE_CONTEXT);
 
         ///assert
+		ASSERT_ARE_EQUAL(int, 0, close_result);
 		tlsio_verify_internal_state(tlsio, TLSIO_STATE_EXT_CLOSED, 0);
 		ASSERT_IO_SEND_ABANDONED(2); // 2 messages in this test
         ASSERT_ARE_EQUAL(char_ptr, umock_c_get_expected_calls(), umock_c_get_actual_calls());
@@ -412,10 +414,11 @@ BEGIN_TEST_SUITE(tlsio_openssl_compact_unittests)
         umock_c_reset_all_calls();
 
         ///act
-        tlsio_id->concrete_io_close(tlsio, on_io_close_complete, IO_CLOSE_COMPLETE_CONTEXT);
+		int close_result = tlsio_id->concrete_io_close(tlsio, on_io_close_complete, IO_CLOSE_COMPLETE_CONTEXT);
 
         ///assert
-        ASSERT_IO_CLOSE_CALLBACK(false);
+		ASSERT_ARE_NOT_EQUAL(int, 0, close_result);
+		ASSERT_IO_CLOSE_CALLBACK(false);
         ASSERT_ARE_EQUAL(char_ptr, umock_c_get_expected_calls(), umock_c_get_actual_calls());
 		tlsio_verify_internal_state(tlsio, TLSIO_STATE_EXT_OPEN, 0);
 
@@ -426,7 +429,7 @@ BEGIN_TEST_SUITE(tlsio_openssl_compact_unittests)
 	}
 
 	/* Tests_SRS_TLSIO_30_056: [ On success the adapter shall enter TLSIO_STATE_EX_CLOSING. ]*/
-	/* Tests_SRS_TLSIO_30_051: [ On success, If the underlying TLS does not support asynchronous closing, then the adapter shall enter TLSIO_STATE_EX_CLOSED immediately after entering TLSIO_STATE_EX_CLOSING. ]*/
+	/* Tests_SRS_TLSIO_30_051: [ On success, if the underlying TLS does not support asynchronous closing, then the adapter shall enter TLSIO_STATE_EX_CLOSED immediately after entering TLSIO_STATE_EX_CLOSING. ]*/
     /* Tests_SRS_TLSIO_30_052: [ On success tlsio_close  shall return 0. ]*/
 	// For this case, tlsio_openssl_compact_open has been called previously
     TEST_FUNCTION(tlsio_openssl_compact__close_after_open__succeeds)
@@ -448,10 +451,11 @@ BEGIN_TEST_SUITE(tlsio_openssl_compact_unittests)
         // End of arrange
 
         ///act
-        tlsio_id->concrete_io_close(tlsio, on_io_close_complete, IO_CLOSE_COMPLETE_CONTEXT);
+        int close_result = tlsio_id->concrete_io_close(tlsio, on_io_close_complete, IO_CLOSE_COMPLETE_CONTEXT);
 
         ///assert
-        ASSERT_IO_CLOSE_CALLBACK(true);
+		ASSERT_ARE_EQUAL(int, 0, close_result);
+		ASSERT_IO_CLOSE_CALLBACK(true);
         ASSERT_ARE_EQUAL(char_ptr, umock_c_get_expected_calls(), umock_c_get_actual_calls());
 		tlsio_verify_internal_state(tlsio, TLSIO_STATE_EXT_CLOSED, 0);
 
@@ -461,8 +465,8 @@ BEGIN_TEST_SUITE(tlsio_openssl_compact_unittests)
 		assert_gballoc_checks();
 	}
 
-    /* Tests_SRS_TLSIO_30_054: [ If tlsio_openssl_compact_open has been called but the process of opening has not been completed, then the on_io_open_complete callback shall be made with IO_OPEN_CANCELLED. ]*/
-    TEST_FUNCTION(tlsio_openssl_compact__close_while_opening__succeeds)
+    /* Tests_SRS_TLSIO_30_053: [ If the adapter is in any state other than TLSIO_STATE_EXT_OPEN or TLSIO_STATE_EXT_ERROR tlsio_close shall log an error and return FAILURE. ]*/
+    TEST_FUNCTION(tlsio_openssl_compact__close_while_opening__fails)
     {
         ///arrange
         reset_callback_context_records();
@@ -505,7 +509,6 @@ BEGIN_TEST_SUITE(tlsio_openssl_compact_unittests)
         STRICT_EXPECTED_CALL(get_time(NULL));
 
         // dowork_poll_open_ssl (done)
-        //STRICT_EXPECTED_CALL(SSL_connect(SSL_Good_Ptr)).SetReturn(SSL_CONNECT_SUCCESS);
 
         tlsio_id->concrete_io_dowork(tlsio); // dowork_poll_dns (waiting)
         tlsio_id->concrete_io_dowork(tlsio); // dowork_poll_dns (done)
@@ -526,13 +529,13 @@ BEGIN_TEST_SUITE(tlsio_openssl_compact_unittests)
         // End of arrange
 
         ///act
-        int close_return = tlsio_id->concrete_io_close(tlsio, on_io_close_complete, IO_CLOSE_COMPLETE_CONTEXT);
-		(void)close_return;
+        int close_result = tlsio_id->concrete_io_close(tlsio, on_io_close_complete, IO_CLOSE_COMPLETE_CONTEXT);
 
         ///assert
-        ASSERT_IO_OPEN_CALLBACK(true, IO_OPEN_CANCELLED);
-        ASSERT_IO_CLOSE_CALLBACK(true);
-        ASSERT_ARE_EQUAL(char_ptr, umock_c_get_expected_calls(), umock_c_get_actual_calls());
+		tlsio_verify_internal_state(tlsio, TLSIO_STATE_EXT_OPENING, 0);
+		ASSERT_ARE_NOT_EQUAL(int, 0, close_result);
+		ASSERT_IO_OPEN_CALLBACK(false, IO_OPEN_CANCELLED);
+        ASSERT_IO_CLOSE_CALLBACK(false);
 
         ///cleanup
         tlsio_id->concrete_io_close(tlsio, on_io_close_complete, NULL);

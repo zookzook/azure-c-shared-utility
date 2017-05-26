@@ -375,11 +375,9 @@ int tlsio_close(CONCRETE_IO_HANDLE tlsio_handle, ON_IO_CLOSE_COMPLETE on_io_clos
 
 **SRS_TLSIO_30_056: [** On success the adapter shall [enter TLSIO_STATE_EX_CLOSING](#enter-TLSIO_STATE_EXT_CLOSING "Iterate through any unsent messages in the queue and delete each message after calling its `on_send_complete` with the associated `callback_context` and `IO_SEND_CANCELLED`."). **]**
 
-**SRS_TLSIO_30_051: [** On success, If the underlying TLS does not support asynchronous closing, then the adapter shall [enter TLSIO_STATE_EX_CLOSED](#enter-TLSIO_STATE_EXT_CLOSED "Forcibly close any existing connections then call the `on_io_close_complete` function and pass the `on_io_close_complete_context` that was supplied in `tlsio_close`.") immediately after entering TLSIO_STATE_EX_CLOSING. **]**
+**SRS_TLSIO_30_051: [** On success, if the underlying TLS does not support asynchronous closing, then the adapter shall [enter TLSIO_STATE_EX_CLOSED](#enter-TLSIO_STATE_EXT_CLOSED "Forcibly close any existing connections then call the `on_io_close_complete` function and pass the `on_io_close_complete_context` that was supplied in `tlsio_close`.") immediately after entering TLSIO_STATE_EX_CLOSING. **]**
 
 **SRS_TLSIO_30_052: [** On success`tlsio_close` shall return 0. **]**
-
-**SRS_TLSIO_30_057: [** When the closing process is complete, `tlsio_close`  shall call `on_io_close_complete` and pass the `callback_context` as a parameter. **]**
 
 
 ###   tlsio_send
