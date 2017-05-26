@@ -1388,8 +1388,8 @@ BEGIN_TEST_SUITE(tlsio_openssl_compact_unittests)
 	}
 
     /* Tests_SRS_TLSIO_30_013: [ If the io_create_parameters value is NULL, tlsio_openssl_compact_create shall log an error and return NULL. ]*/
-    /* Tests_SRS_TLSIO_30_014: [ If the hostname member of io_create_parameters value is NULL, tlsio_openssl_compact_create shall log an error and return NULL. ]*/
-    /* Tests_SRS_TLSIO_30_015: [ If the port member of io_create_parameters value is less than 0 or greater than 0xffff, tlsio_openssl_compact_create shall log an error and return NULL. ]*/
+    /* Tests_SRS_TLSIO_30_014: [ If the hostname member of io_create_parameters value is NULL, tlsio_create shall log an error and return NULL. ]*/
+    /* Tests_SRS_TLSIO_30_015: [ If the port member of io_create_parameters value is less than 0 or greater than 0xffff, tlsio_create shall log an error and return NULL. ]*/
     TEST_FUNCTION(tlsio_openssl_compact__create_parameter_validation_fails__fails)
     {
         ///arrange
@@ -1414,7 +1414,7 @@ BEGIN_TEST_SUITE(tlsio_openssl_compact_unittests)
 		assert_gballoc_checks();
 	}
 
-    /* Tests_SRS_TLSIO_30_011: [ If any resource allocation fails, tlsio_openssl_compact_create shall return NULL. ]*/
+    /* Tests_SRS_TLSIO_30_011: [ If any resource allocation fails, tlsio_create shall return NULL. ]*/
     TEST_FUNCTION(tlsio_openssl_compact__create_unhappy_paths__fails)
     {
         ///arrange
@@ -1443,8 +1443,8 @@ BEGIN_TEST_SUITE(tlsio_openssl_compact_unittests)
 		assert_gballoc_checks();
 	}
 
-    /* Tests_SRS_TLSIO_30_010: [ The tlsio_openssl_compact_create shall allocate and initialize all necessary resources and return an instance of the tlsio_openssl_compact. ]*/
-    /* Tests_SRS_TLSIO_30_016: [ tlsio_openssl_compact_create shall make a copy of the hostname member of io_create_parameters to allow deletion of hostname immediately after the call. ]*/
+    /* Tests_SRS_TLSIO_30_010: [ The tlsio_create shall allocate and initialize all necessary resources and return an instance of the tlsio_openssl_compact. ]*/
+    /* Tests_SRS_TLSIO_30_016: [ tlsio_create shall make a copy of the hostname member of io_create_parameters to allow deletion of hostname immediately after the call. ]*/
     TEST_FUNCTION(tlsio_openssl_compact__create__succeeds)
     {
         ///arrange
@@ -1467,7 +1467,59 @@ BEGIN_TEST_SUITE(tlsio_openssl_compact_unittests)
 		assert_gballoc_checks();
 	}
 
-    /* Tests_SRS_TLSIO_30_020: [ If tlsio_handle is NULL, tlsio_openssl_compact_destroy shall do nothing. ]*/
+
+	/* Tests_SRS_TLSIO_30_022: [ If the adapter is in any state other than TLSIO_STATE_EX_CLOSED when  tlsio_destroy is called, the adapter shall log an error and enter TLSIO_STATE_EX_CLOSED before completing the destroy process. ]*/
+	TEST_FUNCTION(tlsio_openssl_compact__destroy_with_unsent_messages__succeeds)
+	{
+		///arrange
+		reset_callback_context_records();
+		const IO_INTERFACE_DESCRIPTION* tlsio_id = tlsio_get_interface_description();
+		CONCRETE_IO_HANDLE tlsio = tlsio_id->concrete_io_create(&good_config);
+		open_helper(tlsio_id, tlsio);
+
+		// Make sure the arrangement is correct
+		ASSERT_IO_OPEN_CALLBACK(true, IO_OPEN_OK);
+
+		int send_result = tlsio_id->concrete_io_send(tlsio, SSL_send_buffer,
+			SSL_SHORT_MESSAGE_SIZE, on_io_send_complete, IO_SEND_COMPLETE_CONTEXT);
+		ASSERT_ARE_EQUAL(int, send_result, 0);
+		send_result = tlsio_id->concrete_io_send(tlsio, SSL_send_buffer,
+			SSL_SHORT_MESSAGE_SIZE, on_io_send_complete, IO_SEND_COMPLETE_CONTEXT);
+		ASSERT_ARE_EQUAL(int, send_result, 0);
+
+
+		umock_c_reset_all_calls();
+		STRICT_EXPECTED_CALL(SSL_shutdown(SSL_Good_Ptr));
+		STRICT_EXPECTED_CALL(SSL_free(SSL_Good_Ptr));
+		STRICT_EXPECTED_CALL(SSL_CTX_free(SSL_Good_Context_Ptr));
+		STRICT_EXPECTED_CALL(socket_async_destroy(SSL_Good_Socket));
+		// Message 1 delete
+		STRICT_EXPECTED_CALL(gballoc_free(IGNORED_PTR_ARG));
+		STRICT_EXPECTED_CALL(gballoc_free(IGNORED_PTR_ARG));
+		STRICT_EXPECTED_CALL(gballoc_free(IGNORED_PTR_ARG));
+		// Message 2 delete
+		STRICT_EXPECTED_CALL(gballoc_free(IGNORED_PTR_ARG));
+		STRICT_EXPECTED_CALL(gballoc_free(IGNORED_PTR_ARG));
+		STRICT_EXPECTED_CALL(gballoc_free(IGNORED_PTR_ARG));
+		// Close and delete tlsio
+		STRICT_EXPECTED_CALL(gballoc_free(IGNORED_PTR_ARG));
+		STRICT_EXPECTED_CALL(gballoc_free(IGNORED_PTR_ARG));
+		STRICT_EXPECTED_CALL(gballoc_free(IGNORED_PTR_ARG));
+		// End of arrange
+
+		///act
+		tlsio_id->concrete_io_destroy(tlsio);
+
+		///assert
+		ASSERT_IO_SEND_ABANDONED(2); // 2 messages in this test
+		ASSERT_ARE_EQUAL(char_ptr, umock_c_get_expected_calls(), umock_c_get_actual_calls());
+
+
+		///cleanup
+		assert_gballoc_checks();
+	}
+
+    /* Tests_SRS_TLSIO_30_020: [ If tlsio_handle is NULL, tlsio_destroy shall do nothing. ]*/
     TEST_FUNCTION(tlsio_openssl_compact__destroy_parameter_validation__fails)
     {
         ///arrange
@@ -1483,7 +1535,7 @@ BEGIN_TEST_SUITE(tlsio_openssl_compact_unittests)
 		assert_gballoc_checks();
 	}
 
-    /* Tests_SRS_TLSIO_30_021: [ The tlsio_openssl_compact_destroy shall release all allocated resources and then release tlsio_handle. ]*/
+    /* Tests_SRS_TLSIO_30_021: [ The tlsio__destroy shall release all allocated resources and then release tlsio_handle. ]*/
     TEST_FUNCTION(tlsio_openssl_compact__destroy_unopened__succeeds)
     {
         ///arrange
