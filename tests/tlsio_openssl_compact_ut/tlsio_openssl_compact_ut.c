@@ -314,8 +314,8 @@ BEGIN_TEST_SUITE(tlsio_openssl_compact_unittests)
 		assert_gballoc_checks();
 	}
 
-    /* Tests_SRS_TLSIO_30_050: [ If the tlsio_handle parameter is NULL, tlsio_openssl_compact_close shall log an error and return FAILURE. ]*/
-    /* Tests_SRS_TLSIO_30_055: [ If the on_io_close_complete parameter is NULL, tlsio_openssl_compact_close shall log an error and return FAILURE. ]*/
+    /* Tests_SRS_TLSIO_30_050: [ If the tlsio_handle parameter is NULL, tlsio_close shall log an error and return FAILURE. ]*/
+    /* Tests_SRS_TLSIO_30_055: [ If the on_io_close_complete parameter is NULL, tlsio_close shall log an error and return FAILURE. ]*/
     TEST_FUNCTION(tlsio_openssl_compact__close_parameter_validation__fails)
     {
         ///arrange
@@ -400,8 +400,7 @@ BEGIN_TEST_SUITE(tlsio_openssl_compact_unittests)
 		assert_gballoc_checks();
 	}
 
-    /* Tests_SRS_TLSIO_30_052: [ The tlsio_openssl_compact_close return value shall be 0 unless tlsio_openssl_compact_open has not been called previously. ]*/
-    /* Tests_SRS_TLSIO_30_057: [ When the closing process is complete, tlsio_openssl_compact_close shall call on_io_close_complete and pass the callback_context as a parameter. ]*/
+    /* Tests_SRS_TLSIO_30_053: [ If the adapter is in any state other than TLSIO_STATE_EXT_OPEN or TLSIO_STATE_EXT_ERROR  tlsio_close  shall log an error and return FAILURE. ]*/
     // For this case, tlsio_openssl_compact_open has not been called previously
     TEST_FUNCTION(tlsio_openssl_compact__close_unopened__fails)
     {
@@ -416,9 +415,9 @@ BEGIN_TEST_SUITE(tlsio_openssl_compact_unittests)
         tlsio_id->concrete_io_close(tlsio, on_io_close_complete, IO_CLOSE_COMPLETE_CONTEXT);
 
         ///assert
-        ASSERT_IO_CLOSE_CALLBACK(true);
+        ASSERT_IO_CLOSE_CALLBACK(false);
         ASSERT_ARE_EQUAL(char_ptr, umock_c_get_expected_calls(), umock_c_get_actual_calls());
-		tlsio_verify_internal_state(tlsio, TLSIO_STATE_EXT_CLOSED, 0);
+		tlsio_verify_internal_state(tlsio, TLSIO_STATE_EXT_OPEN, 0);
 
         ///cleanup
         tlsio_id->concrete_io_close(tlsio, on_io_close_complete, NULL);
@@ -426,9 +425,10 @@ BEGIN_TEST_SUITE(tlsio_openssl_compact_unittests)
 		assert_gballoc_checks();
 	}
 
-    /* Tests_SRS_TLSIO_30_052: [ The tlsio_openssl_compact_close return value shall be 0 unless tlsio_openssl_compact_open has not been called previously. ]*/
-    /* Tests_SRS_TLSIO_30_057: [ When the closing process is complete, tlsio_openssl_compact_close shall call on_io_close_complete and pass the callback_context as a parameter. ]*/
-    // For this case, tlsio_openssl_compact_open has been called previously
+	/* Tests_SRS_TLSIO_30_056: [ On success the adapter shall enter TLSIO_STATE_EX_CLOSING. ]*/
+	/* Tests_SRS_TLSIO_30_051: [ On success, If the underlying TLS does not support asynchronous closing, then the adapter shall enter TLSIO_STATE_EX_CLOSED immediately after entering TLSIO_STATE_EX_CLOSING. ]*/
+    /* Tests_SRS_TLSIO_30_052: [ On success tlsio_close  shall return 0. ]*/
+	// For this case, tlsio_openssl_compact_open has been called previously
     TEST_FUNCTION(tlsio_openssl_compact__close_after_open__succeeds)
     {
         ///arrange
@@ -1497,7 +1497,7 @@ BEGIN_TEST_SUITE(tlsio_openssl_compact_unittests)
 	}
 
 
-	/* Tests_SRS_TLSIO_30_022: [ If the adapter is in any state other than TLSIO_STATE_EX_CLOSED when  tlsio_destroy is called, the adapter shall log an error and enter TLSIO_STATE_EX_CLOSED before completing the destroy process. ]*/
+	/* Tests_SRS_TLSIO_30_022: [ If the adapter is in any state other than TLSIO_STATE_EX_CLOSED when tlsio_destroy is called, the adapter shall enter TLSIO_STATE_EX_CLOSING and then enter TLSIO_STATE_EX_CLOSED before completing the destroy process. ]*/
 	TEST_FUNCTION(tlsio_openssl_compact__destroy_with_unsent_messages__succeeds)
 	{
 		///arrange

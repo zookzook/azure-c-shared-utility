@@ -220,8 +220,8 @@ void tlsio_openssl_destroy(CONCRETE_IO_HANDLE tls_io)
     {
         if (tls_io_instance->tlsio_state != TLSIO_STATE_CLOSED)
         {
-            /* Codes_SRS_TLSIO_30_022: [ If the adapter is in any state other than TLSIO_STATE_EX_CLOSED when  tlsio_destroy is called, the adapter shall log an error and enter TLSIO_STATE_EX_CLOSED before completing the destroy process. ]*/
-            LogError("tlsio_openssl_destroy called while TLSIO_STATE_OPEN.");
+            /* Codes_SRS_TLSIO_30_022: [ If the adapter is in any state other than TLSIO_STATE_EX_CLOSED when tlsio_destroy is called, the adapter shall enter TLSIO_STATE_EX_CLOSING and then enter TLSIO_STATE_EX_CLOSED before completing the destroy process. ]*/
+            LogError("tlsio_openssl_destroy called while not in TLSIO_STATE_CLOSED.");
 			internal_close(tls_io_instance);
 		}
         /* Codes_SRS_TLSIO_30_021: [ The tlsio_destroy shall release all allocated resources and then release tlsio_handle. ]*/
@@ -417,45 +417,37 @@ int tlsio_openssl_close(CONCRETE_IO_HANDLE tls_io, ON_IO_CLOSE_COMPLETE on_io_cl
     if (tls_io == NULL)
     {
         /* Codes_SRS_TLSIO_30_050: [ If the tlsio_handle parameter is NULL, tlsio_openssl_compact_close shall log an error and return FAILURE. ]*/
-        result = __FAILURE__;
         LogError(null_tlsio_message);
+        result = __FAILURE__;
     }
     else
     {
         if (on_io_close_complete == NULL)
         {
             /* Codes_SRS_TLSIO_30_055: [ If the on_io_close_complete parameter is NULL, tlsio_openssl_compact_close shall log an error and return FAILURE. ]*/
-            result = __FAILURE__;
             LogError("NULL on_io_close_complete");
+            result = __FAILURE__;
         }
         else
         {
-            if (tls_io_instance->tlsio_state == TLSIO_STATE_CLOSED)
+            if (tls_io_instance->tlsio_state != TLSIO_STATE_OPEN &&
+				tls_io_instance->tlsio_state != TLSIO_STATE_ERROR)
             {
-                /* Codes_SRS_TLSIO_30_053: [ If tlsio_openssl_compact_open has not been called previously then tlsio_openssl_compact_close shall log an error and return FAILURE. ]*/
+                /* Codes_SRS_TLSIO_30_053: [ If the adapter is in any state other than TLSIO_STATE_EXT_OPEN or TLSIO_STATE_EXT_ERROR  tlsio_close  shall log an error and return FAILURE. ]*/
+                LogError("tlsio_openssl_close has been called when in neither TLSIO_STATE_OPEN nor TLSIO_STATE_ERROR.");
                 result = __FAILURE__;
-                LogError("tlsio_openssl_close has been called with no prior successful open.");
             }
             else
             {
-                /* Codes_SRS_TLSIO_30_052: [ The tlsio_openssl_compact_close return value shall be 0 unless tlsio_openssl_compact_open has not been called previously. ]*/
+				/* Codes_SRS_TLSIO_30_056: [ On success the adapter shall enter TLSIO_STATE_EX_CLOSING. ]*/
+				/* Codes_SRS_TLSIO_30_051: [ On success, If the underlying TLS does not support asynchronous closing, then the adapter shall enter TLSIO_STATE_EX_CLOSED immediately after entering TLSIO_STATE_EX_CLOSING. ]*/
+				/* Codes_SRS_TLSIO_30_052: [ On success tlsio_close shall return 0. ]*/
+				internal_close(tls_io_instance);
+				/* Codes_SRS_TLSIO_30_057: [ When the closing process is complete, tlsio_openssl_compact_close shall call on_io_close_complete and pass the callback_context as a parameter. ]*/
+				on_io_close_complete(callback_context);
                 result = 0;
-                if (tls_io_instance->tlsio_state != TLSIO_STATE_OPEN &&
-                    tls_io_instance->tlsio_state != TLSIO_STATE_ERROR)
-                {
-                    // This is one of the OPENING states
-                    /* Codes_SRS_TLSIO_30_054: [ If tlsio_openssl_compact_open has been called but the process of opening has not been completed, then the on_io_open_complete callback shall be made with IO_OPEN_CANCELLED. ]*/
-                    tls_io_instance->on_open_complete(tls_io_instance->on_open_complete_context, IO_OPEN_CANCELLED);
-                }
-            }
-            internal_close(tls_io_instance);
+			}
         }
-    }
-
-    if (on_io_close_complete != NULL)
-    {
-        /* Codes_SRS_TLSIO_30_057: [ When the closing process is complete, tlsio_openssl_compact_close shall call on_io_close_complete and pass the callback_context as a parameter. ]*/
-        on_io_close_complete(callback_context);
     }
 
     return result;

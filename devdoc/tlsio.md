@@ -267,17 +267,20 @@ Throughout this document, state transitions only occur as explicitly specified. 
 
 Requirements in this document use the phrase "shall enter TLSIO_STATE_XXXX" to specify behavior. Here are the definitions of the state transition phrases:
 
-##### enter TLSIO_STATE_EXT_ERROR
+##### "enter TLSIO_STATE_EXT_ERROR"
 **SRS_TLSIO_30_005: [** When "enter TLSIO_STATE_EXT_ERROR" is specified the adapter shall call the `on_io_error` function and pass the `on_io_error_context` that were supplied in `tlsio_open`. **]**
 
-##### enter TLSIO_STATE_EXT_CLOSED
-**SRS_TLSIO_30_006: [** When "enter TLSIO_STATE_EXT_CLOSED" is specified the adapter shall call the `on_io_close_complete` function and pass the `on_io_close_complete_context` that were supplied in `tlsio_close`. **]**
+##### "enter TLSIO_STATE_EXT_CLOSING"
+**SRS_TLSIO_30_009: [** The phrase "enter TLSIO_STATE_EXT_CLOSING" means the adapter shall iterate through any unsent messages in the queue and shall delete each message after calling its `on_send_complete` with the associated `callback_context` and `IO_SEND_CANCELLED`. **]**
 
-##### enter TLSIO_STATE_EXT_OPEN
-**SRS_TLSIO_30_007: [** When "enter TLSIO_STATE_EXT_OPEN" is specified the adapter shall call the `on_io_open_complete` function and pass IO_OPEN_OK and the `on_io_open_complete_context` that were supplied in `tlsio_open`. **]**
+##### "enter TLSIO_STATE_EXT_CLOSED"
+**SRS_TLSIO_30_006: [** The phrase "enter TLSIO_STATE_EXT_CLOSED" means the adapter shall forcibly close any existing connections then call the `on_io_close_complete` function and pass the `on_io_close_complete_context` that were supplied in `tlsio_close`. **]**
 
-##### enter TLSIO_STATE_EXT_OPENING
-When "enter TLSIO_STATE_EXT_OPENING" is specified the adapter will continute the process of opening the TSL connection to the host on the next `tlsio_dowork` call but no externally visible action is being specified.
+##### "enter TLSIO_STATE_EXT_OPENING"
+The phrase "enter TLSIO_STATE_EXT_OPENING" means the adapter will continute the process of opening the TSL connection to the host on the next `tlsio_dowork` call but no externally visible action is being specified.
+
+##### "enter TLSIO_STATE_EXT_OPEN"
+**SRS_TLSIO_30_007: [** The phrase "enter TLSIO_STATE_EXT_OPEN" means the adapter shall call the `on_io_open_complete` function and pass IO_OPEN_OK and the `on_io_open_complete_context` that were supplied in `tlsio_open`. **]**
 
 
 
@@ -322,7 +325,7 @@ void tlsio_destroy(CONCRETE_IO_HANDLE tlsio_handle);
 
 **SRS_TLSIO_30_021: [** The `tlsio_destroy` shall release all allocated resources and then release `tlsio_handle`. **]**
 
-**SRS_TLSIO_30_022: [** If the adapter is in any state other than TLSIO_STATE_EX_CLOSED when `tlsio_destroy` is called, the adapter shall log an error and [enter TLSIO_STATE_EX_CLOSED](#enter-TLSIO_STATE_EXT_CLOSED) before completing the destroy process. **]**
+**SRS_TLSIO_30_022: [** If the adapter is in any state other than TLSIO_STATE_EX_CLOSED when `tlsio_destroy` is called, the adapter shall [enter TLSIO_STATE_EX_CLOSING](#enter-TLSIO_STATE_EXT_CLOSING "Iterate through any unsent messages in the queue and delete each message after calling its `on_send_complete` with the associated `callback_context` and `IO_SEND_CANCELLED`.") and then [enter TLSIO_STATE_EX_CLOSED](#enter-TLSIO_STATE_EXT_CLOSED "Forcibly close any existing connections then call the `on_io_close_complete` function and pass the `on_io_close_complete_context` that was supplied in `tlsio_close`.") before completing the destroy process. **]**
 
 
 ###   tlsio_open
@@ -368,15 +371,13 @@ int tlsio_close(CONCRETE_IO_HANDLE tlsio_handle, ON_IO_CLOSE_COMPLETE on_io_clos
 
 **SRS_TLSIO_30_055: [** If the `on_io_close_complete` parameter is NULL, `tlsio_close` shall log an error and return _FAILURE_. **]**
 
-**SRS_TLSIO_30_051: [** The `tlsio_close` shall forcibly close any existing ssl connection. **]**
+**SRS_TLSIO_30_053: [** If the adapter is in any state other than TLSIO_STATE_EXT_OPEN or TLSIO_STATE_EXT_ERROR `tlsio_close` shall log an error and return _FAILURE_. **]**
 
-**SRS_TLSIO_30_052: [** The `tlsio_close` return value shall be 0 unless  `tlsio_open` has not been called previously. **]**
+**SRS_TLSIO_30_056: [** On success the adapter shall [enter TLSIO_STATE_EX_CLOSING](#enter-TLSIO_STATE_EXT_CLOSING "Iterate through any unsent messages in the queue and delete each message after calling its `on_send_complete` with the associated `callback_context` and `IO_SEND_CANCELLED`."). **]**
 
-**SRS_TLSIO_30_053: [** If `tlsio_open` has not been called previously then `tlsio_close` shall log an error and return _FAILURE_. **]**
+**SRS_TLSIO_30_051: [** On success, If the underlying TLS does not support asynchronous closing, then the adapter shall [enter TLSIO_STATE_EX_CLOSED](#enter-TLSIO_STATE_EXT_CLOSED "Forcibly close any existing connections then call the `on_io_close_complete` function and pass the `on_io_close_complete_context` that was supplied in `tlsio_close`.") immediately after entering TLSIO_STATE_EX_CLOSING. **]**
 
-**SRS_TLSIO_30_054: [** If `tlsio_open` has been called  but the process of opening has not been completed, then the `on_io_open_complete` callback shall be made with `IO_OPEN_CANCELLED`. **]**
-
-**SRS_TLSIO_30_056: [** If `tlsio_close` is called while there are unsent messages in the queue, the `tlsio_close` shall call each message's  `on_send_complete`, passing its associated `callback_context` and `IO_SEND_CANCELLED`. **]**
+**SRS_TLSIO_30_052: [** On success`tlsio_close` shall return 0. **]**
 
 **SRS_TLSIO_30_057: [** When the closing process is complete, `tlsio_close`  shall call `on_io_close_complete` and pass the `callback_context` as a parameter. **]**
 
