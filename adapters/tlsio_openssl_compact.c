@@ -330,7 +330,7 @@ int tlsio_openssl_open(CONCRETE_IO_HANDLE tls_io,
     TLS_IO_INSTANCE* tls_io_instance = (TLS_IO_INSTANCE*)tls_io;
     if (tls_io == NULL)
     {
-        /* Codes_SRS_TLSIO_30_030: [ If the tlsio_handle parameter is NULL, tlsio_openssl_compact_open shall log an error and return FAILURE. ]*/
+        /* Codes_SRS_TLSIO_30_030: [ If the tlsio_handle parameter is NULL, tlsio_open shall log an error and return FAILURE. ]*/
         result = __FAILURE__;
         LogError(null_tlsio_message);
     }
@@ -339,7 +339,7 @@ int tlsio_openssl_open(CONCRETE_IO_HANDLE tls_io,
         tls_io_instance->operation_timeout_end_time = get_time(NULL) + TLSIO_OPERATION_TIMEOUT_SECONDS;
         if (on_io_open_complete == NULL)
         {
-            /* Codes_SRS_TLSIO_30_031: [ If the on_io_open_complete parameter is NULL, tlsio_openssl_compact_open shall log an error and return FAILURE. ]*/
+            /* Codes_SRS_TLSIO_30_031: [ If the on_io_open_complete parameter is NULL, tlsio_open shall log an error and return FAILURE. ]*/
             LogError("Required parameter on_io_open_complete is NULL");
             result = __FAILURE__;
         }
@@ -347,7 +347,7 @@ int tlsio_openssl_open(CONCRETE_IO_HANDLE tls_io,
         {
             if (on_bytes_received == NULL)
             {
-                /* Codes_SRS_TLSIO_30_032: [ If the on_bytes_received parameter is NULL, tlsio_openssl_compact_open shall log an error and return FAILURE. ]*/
+                /* Codes_SRS_TLSIO_30_032: [ If the on_bytes_received parameter is NULL, tlsio_open shall log an error and return FAILURE. ]*/
                 LogError("Required parameter on_bytes_received is NULL");
                 result = __FAILURE__;
             }
@@ -355,7 +355,7 @@ int tlsio_openssl_open(CONCRETE_IO_HANDLE tls_io,
             {
                 if (on_io_error == NULL)
                 {
-                    /* Codes_SRS_TLSIO_30_033: [ If the on_io_error parameter is NULL, tlsio_openssl_compact_open shall log an error and return FAILURE. ]*/
+                    /* Codes_SRS_TLSIO_30_033: [ If the on_io_error parameter is NULL, tlsio_open shall log an error and return FAILURE. ]*/
                     LogError("Required parameter on_io_error is NULL");
                     result = __FAILURE__;
                 }
@@ -363,7 +363,7 @@ int tlsio_openssl_open(CONCRETE_IO_HANDLE tls_io,
                 {
                     if (tls_io_instance->tlsio_state != TLSIO_STATE_CLOSED)
                     {
-                        /* Codes_SRS_TLSIO_30_037: [ If tlsio_openssl_compact_open has already been called, it shall log an error, and return FAILURE. ]*/
+                        /* Codes_SRS_TLSIO_30_037: [ If the adapter is in any state other than TLSIO_STATE_EXT_CLOSED when tlsio_open  is called, it shall log an error, and return FAILURE. ]*/
                         LogError("Invalid tlsio_state. Expected state is TLSIO_STATE_CLOSED.");
                         result = __FAILURE__;
                     }
@@ -372,13 +372,13 @@ int tlsio_openssl_open(CONCRETE_IO_HANDLE tls_io,
                         tls_io_instance->dns = dns_async_create(tls_io_instance->hostname, NULL);
                         if (tls_io_instance->dns == NULL)
                         {
-                            /* Codes_RS_TLSIO_OPENSSL_COMPACT_30_038: [ If the tlsio_openssl_compact_open fails to begin opening the OpenSSL connection it shall return FAILURE. ]*/
+                            /* Codes_SRS_TLSIO_30_038: [ If tlsio_open fails to enter TLSIO_STATE_EX_OPENING it shall return FAILURE. ]*/
                             // Error already logged
                             result = __FAILURE__;
                         }
                         else
                         {
-                            /* Codes_SRS_TLSIO_30_034: [ The tlsio_openssl_compact_open shall store the provided on_bytes_received, on_bytes_received_context, on_io_error, on_io_error_context, on_io_open_complete, and on_io_open_complete_context parameters for later use as specified and tested per other line entries in this document. ]*/
+                            /* Codes_SRS_TLSIO_30_034: [ The tlsio_open shall store the provided on_bytes_received, on_bytes_received_context, on_io_error, on_io_error_context, on_io_open_complete, and on_io_open_complete_context parameters for later use as specified and tested per other line entries in this document. ]*/
                             tls_io_instance->on_bytes_received = on_bytes_received;
                             tls_io_instance->on_bytes_received_context = on_bytes_received_context;
 
@@ -388,10 +388,9 @@ int tlsio_openssl_open(CONCRETE_IO_HANDLE tls_io,
                             tls_io_instance->on_open_complete = on_io_open_complete;
                             tls_io_instance->on_open_complete_context = on_io_open_complete_context;
 
-                            /* Codes_SRS_TLSIO_30_035: [ The tlsio_openssl_compact_open shall begin the process of opening the ssl connection with the host provided in the tlsio_openssl_compact_create call. ]*/
+                            /* Codes_SRS_TLSIO_30_035: [ On tlsio_open success the adapter shall enter TLSIO_STATE_EX_OPENING and return 0. ]*/
                             // All the real work happens in dowork
                             tls_io_instance->tlsio_state = TLSIO_STATE_OPENING_WAITING_DNS;
-                            /* Codes_SRS_TLSIO_30_036: [ If tlsio_openssl_compact_open successfully begins opening the OpenSSL connection, it shall return 0. ]*/
                             result = 0;
                         }
                     }
@@ -402,7 +401,7 @@ int tlsio_openssl_open(CONCRETE_IO_HANDLE tls_io,
 
     if (result != 0 && on_io_open_complete != NULL)
     {
-        /* Codes_SRS_TLSIO_30_039: [ If the tlsio_openssl_compact_open returns FAILURE it shall call on_io_open_complete with the provided on_io_open_complete_context and IO_OPEN_ERROR. ]*/
+        /* Codes_SRS_TLSIO_30_039: [ If the tlsio_open returns FAILURE it shall call on_io_open_complete with the provided on_io_open_complete_context and IO_OPEN_ERROR. ]*/
         on_io_open_complete(on_io_open_complete_context, IO_OPEN_ERROR);
     }
 

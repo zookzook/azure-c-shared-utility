@@ -260,12 +260,24 @@ but shall not alter its internal state. Usage errors include:
 
 ## Definitions 
 
+#### Explicit state transitions
+
+Throughout this document, state transitions only occur as explicitly specified. If no state transition is called out, then none is allowed. (So "do nothing" is always understood as the default.)
+#### Specified state transitions
+
 Requirements in this document use the phrase "shall enter TLSIO_STATE_XXXX" to specify behavior. Here are the definitions of the state transition phrases:
 
+##### enter TLSIO_STATE_EXT_ERROR
+**SRS_TLSIO_30_005: [** When "enter TLSIO_STATE_EXT_ERROR" is specified the adapter shall call the `on_io_error` function and pass the `on_io_error_context` that were supplied in `tlsio_open`. **]**
 
-**SRS_TLSIO_30_005: [** When the adapter enters TLSIO_STATE_EXT_ERROR it shall call the `on_io_error` function and pass the `on_io_error_context` that were supplied in `tlsio_open`. **]**
+##### enter TLSIO_STATE_EXT_CLOSED
+**SRS_TLSIO_30_006: [** When "enter TLSIO_STATE_EXT_CLOSED" is specified the adapter shall call the `on_io_close_complete` function and pass the `on_io_close_complete_context` that were supplied in `tlsio_close`. **]**
 
-**SRS_TLSIO_30_006: [** When the adapter enters TLSIO_STATE_EXT_CLOSED it shall call the `on_io_close_complete` function and pass the `on_io_close_complete_context` that were supplied in `tlsio_close`. **]**
+##### enter TLSIO_STATE_EXT_OPEN
+**SRS_TLSIO_30_007: [** When "enter TLSIO_STATE_EXT_OPEN" is specified the adapter shall call the `on_io_open_complete` function and pass IO_OPEN_OK and the `on_io_open_complete_context` that were supplied in `tlsio_open`. **]**
+
+##### enter TLSIO_STATE_EXT_OPENING
+When "enter TLSIO_STATE_EXT_OPENING" is specified the adapter will continute the process of opening the TSL connection to the host on the next `tlsio_dowork` call but no externally visible action is being specified.
 
 
 
@@ -310,7 +322,7 @@ void tlsio_destroy(CONCRETE_IO_HANDLE tlsio_handle);
 
 **SRS_TLSIO_30_021: [** The `tlsio_destroy` shall release all allocated resources and then release `tlsio_handle`. **]**
 
-**SRS_TLSIO_30_022: [** If the adapter is in any state other than TLSIO_STATE_EX_CLOSED when `tlsio_destroy` is called, the adapter shall log an error and enter TLSIO_STATE_EX_CLOSED before completing the destroy process. **]**
+**SRS_TLSIO_30_022: [** If the adapter is in any state other than TLSIO_STATE_EX_CLOSED when `tlsio_destroy` is called, the adapter shall log an error and [enter TLSIO_STATE_EX_CLOSED](#enter-TLSIO_STATE_EXT_CLOSED) before completing the destroy process. **]**
 
 
 ###   tlsio_open
@@ -335,21 +347,15 @@ int tlsio_open(
 
 **SRS_TLSIO_30_033: [** If the on_io_error parameter is NULL, `tlsio_open` shall log an error and return _FAILURE_. **]**
 
-**SRS_TLSIO_30_034: [** The `tlsio_open` shall store the provided `on_bytes_received`,  `on_bytes_received_context`, `on_io_error`, `on_io_error_context`, `on_io_open_complete`,  and `on_io_open_complete_context` parameters for later use as specified and tested per other line entries in this document. **]**
+**SRS_TLSIO_30_037: [** If the adapter is in any state other than TLSIO_STATE_EXT_CLOSED when `tlsio_open` is called, it shall log an error, and return _FAILURE_. **]**
 
-**SRS_TLSIO_30_035: [** The `tlsio_open` shall begin the process of opening the ssl connection with the host provided in the `tlsio_create` call. **]**
+**SRS_TLSIO_30_034: [** On success, `tlsio_open` shall store the provided `on_bytes_received`,  `on_bytes_received_context`, `on_io_error`, `on_io_error_context`, `on_io_open_complete`,  and `on_io_open_complete_context` parameters for later use as specified and tested per other line entries in this document. **]**
 
-**SRS_TLSIO_30_036: [** If `tlsio_open` successfully begins opening the OpenSSL connection, it shall return 0. **]**
+**SRS_TLSIO_30_035: [** On `tlsio_open` success the adapter shall [enter TLSIO_STATE_EX_OPENING](#enter-TLSIO_STATE_EXT_OPENING) and return 0. **]**
 
-**SRS_TLSIO_30_037: [** If `tlsio_open` has already been called, it shall log an error, and return _FAILURE_. **]**
-
-**SRS_TLSIO_30_038: [** If the `tlsio_open` fails to begin opening the OpenSSL connection it shall return _FAILURE_. **]**
+**SRS_TLSIO_30_038: [** If `tlsio_open` fails to  [enter TLSIO_STATE_EX_OPENING](#enter-TLSIO_STATE_EXT_OPENING) it shall return _FAILURE_. **]**
 
 **SRS_TLSIO_30_039: [** If the `tlsio_open` returns _FAILURE_  it shall call `on_io_open_complete` with the provided `on_io_open_complete_context` and IO_OPEN_ERROR. **]**
-
-**SRS_TLSIO_30_040: [** `tlsio_open` shall succeed during a 'Failed open retry' as defined at the top of this document. **]**
-
-**SRS_TLSIO_30_041: [** `tlsio_open` shall succeed during a 'Failed i/o retry' as defined at the top of this document. **]**
 
 
 ###   tlsio_close
