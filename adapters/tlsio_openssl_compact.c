@@ -80,6 +80,23 @@ static const char* null_tlsio_message = "NULL tlsio";
 static const char* allocate_fail_message = "malloc failed";
 #endif
 
+static void enter_tlsio_error_state(TLS_IO_INSTANCE* tls_io_instance)
+{
+	if (tls_io_instance->tlsio_state != TLSIO_STATE_ERROR)
+	{
+		tls_io_instance->tlsio_state = TLSIO_STATE_ERROR;
+		tls_io_instance->on_io_error(tls_io_instance->on_io_error_context);
+	}
+}
+
+static void enter_open_error_state(TLS_IO_INSTANCE* tls_io_instance)
+{
+	enter_tlsio_error_state(tls_io_instance);    
+	// on_open_complete has already been checked for non-NULL
+	/* Codes_SRS_TLSIO_30_005: [ When the adapter enters TLSIO_STATE_EXT_ERROR it shall call the  on_io_error function and pass the on_io_error_context that were supplied in  tlsio_open . ]*/
+	tls_io_instance->on_open_complete(tls_io_instance->on_open_complete_context, IO_OPEN_ERROR);
+}
+
 // Return true if a message was available to remove
 static bool close_and_destroy_head_message(TLS_IO_INSTANCE* tls_io_instance, IO_SEND_RESULT send_result)
 {
@@ -88,14 +105,15 @@ static bool close_and_destroy_head_message(TLS_IO_INSTANCE* tls_io_instance, IO_
     if (send_result == IO_SEND_ERROR)
     {
         /* Codes_SRS_TLSIO_30_095: [ If the send process fails before sending all of the bytes in an enqueued message, the tlsio_dowork shall call the message's on_send_complete along with its associated callback_context and IO_SEND_ERROR. ]*/
-        tls_io_instance->on_io_error(tls_io_instance->on_io_error_context);
+		enter_tlsio_error_state(tls_io_instance);
     }
     LIST_ITEM_HANDLE head_pending_io = singlylinkedlist_get_head_item(tls_io_instance->pending_transmission_list);
     if (head_pending_io != NULL)
     {
         PENDING_SOCKET_IO* head_message = (PENDING_SOCKET_IO*)singlylinkedlist_item_get_value(head_pending_io);
         // on_send_complete is checked for NULL during PENDING_SOCKET_IO creation
-        head_message->on_send_complete(head_message->callback_context, send_result);
+		/* Codes_SRS_TLSIO_30_095: [ If the send process fails before sending all of the bytes in an enqueued message, the tlsio_dowork shall call the message's on_send_complete along with its associated callback_context and IO_SEND_ERROR. ]*/
+		head_message->on_send_complete(head_message->callback_context, send_result);
 
         free(head_message->bytes);
         free(head_message);
@@ -103,10 +121,8 @@ static bool close_and_destroy_head_message(TLS_IO_INSTANCE* tls_io_instance, IO_
         {
             // This particular situation is a bizarre and unrecoverable internal error
             /* Codes_SRS_TLSIO_OPENSSL_COMPACT_30_094: [ If the send process encounters an internal error or calls on_send_complete with IO_SEND_ERROR due to either failure or timeout, it shall also call on_io_error and pass in the associated on_io_error_context. ]*/
-            tls_io_instance->tlsio_state = TLSIO_STATE_ERROR;
-            // on_io_error is checked for NULL during tlsio_openssl_create
-            tls_io_instance->on_io_error(tls_io_instance->on_io_error_context);
-            LogError("Unrecoverable program bug: unable to remove message from list");
+			enter_tlsio_error_state(tls_io_instance);
+			LogError("Unrecoverable program bug: unable to remove message from list");
         }
         result = true;
     }
@@ -115,14 +131,6 @@ static bool close_and_destroy_head_message(TLS_IO_INSTANCE* tls_io_instance, IO_
         result = false;
     }
     return result;
-}
-
-static void enter_open_error_state(TLS_IO_INSTANCE* tls_io_instance)
-{
-    tls_io_instance->tlsio_state = TLSIO_STATE_ERROR;
-    // on_open_complete has already been checked for non-NULL
-	/* Codes_SRS_TLSIO_30_005: [ When the adapter enters TLSIO_STATE_EXT_ERROR it shall call the  on_io_error function and pass the on_io_error_context that were supplied in  tlsio_open . ]*/
-	tls_io_instance->on_open_complete(tls_io_instance->on_open_complete_context, IO_OPEN_ERROR);
 }
 
 static void check_for_open_timeout(TLS_IO_INSTANCE* tls_io_instance)
