@@ -73,15 +73,17 @@ typedef void(*ON_IO_ERROR)(void* context);
  ```
 
 
-**SRS_TLSIO_30_006: [** Tlsio adapter implementations shall define and observe the internally defined `TLSIO_OPERATION_TIMEOUT_SECONDS` timeout value for opening, closing, and sending processes. This value is considered an emergency limit rather than a useful tuning parameter, so it is not adjustable via the more expensive get / set options system:
+**SRS_TLSIO_30_003: [** Tlsio adapter implementations shall define and observe the internally defined `TLSIO_OPERATION_TIMEOUT_SECONDS` timeout value for opening, closing, and sending processes:
   ```c
+// This value is considered an emergency limit rather than a useful tuning parameter,
+// so it is not adjustable via the more expensive get / set options system
 #ifndef TLSIO_OPERATION_TIMEOUT_SECONDS
 #define TLSIO_OPERATION_TIMEOUT_SECONDS 40
 #endif // !TLSIO_OPERATION_TIMEOUT_SECONDS
   ```
 **]**
 
-**SRS_TLSIO_30_007: [** Tlsio implementations which use an internal buffer to pass data into the `on_bytes_received` callback shall define the size of this buffer with the internally defined `TLSIO_RECEIVE_BUFFER_SIZE` value.
+**SRS_TLSIO_30_004: [** Tlsio implementations which use an internal buffer to pass data into the `on_bytes_received` callback shall define the size of this buffer with the internally defined `TLSIO_RECEIVE_BUFFER_SIZE` value.
   ```c
 // The TLSIO_RECEIVE_BUFFER_SIZE has very little effect on performance, and is kept small
 // to minimize memory consumption.
@@ -113,15 +115,15 @@ This list shows the effect of the calls as a function of state with happy intern
   </tr>
   <tr>
     <td>tlsio_open</td>
-    <td>ok, enter TLSIO_STATE_OPENING</td>
+    <td>ok, enter TLSIO_STATE_EXT_OPENING</td>
   </tr>
   <tr>
     <td>tlsio_close</td>
-    <td>fail, log error, remain in TLSIO_STATE_CLOSED (see "Usage error policy" below)</td>
+    <td>fail, log error, remain in TLSIO_STATE_EXT_CLOSED (see "Usage error policy" below)</td>
   </tr>
   <tr>
     <td>tlsio_dowork</td>
-    <td>ok (does nothing), remain in TLSIO_STATE_CLOSED</td>
+    <td>ok (does nothing), remain in TLSIO_STATE_EXT_CLOSED</td>
   </tr>
 </table>
 
@@ -157,11 +159,11 @@ This list shows the effect of the calls as a function of state with happy intern
   </tr>
   <tr>
     <td>tlsio_close</td>
-    <td>ok, enter TLSIO_STATE_CLOSING</td>
+    <td>ok, enter TLSIO_STATE_EXT_CLOSING</td>
   </tr>
   <tr>
     <td>tlsio_dowork</td>
-    <td>ok (send and receive as necessary), remain in TLSIO_STATE_OPEN</td>
+    <td>ok (send and receive as necessary), remain in TLSIO_STATE_EXT_OPEN</td>
   </tr>
 </table>
 
@@ -181,7 +183,7 @@ This list shows the effect of the calls as a function of state with happy intern
   </tr>
   <tr>
     <td>tlsio_dowork</td>
-    <td>ok (continue graceful closing) , remain in TLSIO_STATE_CLOSING or enter TLSIO_STATE_CLOSED</td>
+    <td>ok (continue graceful closing) , remain in TLSIO_STATE_EXT_CLOSING or enter TLSIO_STATE_EXT_CLOSED</td>
   </tr>
 </table>
 
@@ -193,15 +195,15 @@ This list shows the effect of the calls as a function of state with happy intern
   </tr>
   <tr>
     <td>tlsio_open</td>
-    <td>fail, log error, remain in TLSIO_STATE_ERROR (see "Usage error policy" below)</td>
+    <td>fail, log error, remain in TLSIO_STATE_EXT_ERROR (see "Usage error policy" below)</td>
   </tr>
   <tr>
     <td>tlsio_close</td>
-    <td>ok, force immediate close, enter TLSIO_STATE_CLOSED</td>
+    <td>ok, force immediate close, enter TLSIO_STATE_EXT_CLOSED</td>
   </tr>
   <tr>
     <td>tlsio_dowork</td>
-    <td>ok (does nothing), remain in TLSIO_STATE_ERROR</td>
+    <td>ok (does nothing), remain in TLSIO_STATE_EXT_ERROR</td>
   </tr>
 </table>
 
@@ -256,6 +258,17 @@ but shall not alter its internal state. Usage errors include:
 * Allowing optional callback functions would significantly increase the number of required unit tests.
 * The cost to the caller of providing callback functions is trivial.
 
+## Definitions 
+
+Requirements in this document use the phrase "shall enter TLSIO_STATE_XXXX" to specify behavior. Here are the definitions of the state transition phrases:
+
+
+**SRS_TLSIO_30_005: [** When the adapter enters TLSIO_STATE_EXT_ERROR it shall call the `on_io_error` function and pass the `on_io_error_context` that were supplied in `tlsio_open`. **]**
+
+**SRS_TLSIO_30_006: [** When the adapter enters TLSIO_STATE_EXT_CLOSED it shall call the `on_io_close_complete` function and pass the `on_io_close_complete_context` that were supplied in `tlsio_close`. **]**
+
+
+
 ## API Calls
 
 ###   tlsio_get_interface_description
@@ -272,7 +285,7 @@ Implementation of `IO_CREATE concrete_io_create`
 CONCRETE_IO_HANDLE tlsio_create(void* io_create_parameters);
 ```
 
-**SRS_TLSIO_30_010: [** The `tlsio_create` shall allocate and initialize all necessary resources and return an instance of the `tlsio`. **]**
+**SRS_TLSIO_30_010: [** The `tlsio_create` shall allocate and initialize all necessary resources and return an instance of the `tlsio` (TLSIO_STATE_CLOSED). **]**
 
 **SRS_TLSIO_30_011: [** If any resource allocation fails, `tlsio_create` shall return NULL. **]**
 

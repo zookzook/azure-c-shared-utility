@@ -26,15 +26,16 @@ typedef struct PENDING_SOCKET_IO_TAG
     void* callback_context;
 } PENDING_SOCKET_IO;
 
-// It is not anticipated that there should ever be a need to modify the
-// SSL_MAX_BLOCK_TIME_SECONDS value, but if there is then it can be
-// overridden with a preprocessor #define
+/* Codes_SRS_TLSIO_30_003: [ Tlsio adapter implementations shall define and observe the internally defined  TLSIO_OPERATION_TIMEOUT_SECONDS  timeout value for opening, closing, and sending processes: ]*/
+// This value is considered an emergency limit rather than a useful tuning parameter,
+// so it is not adjustable via the more expensive get / set options system
 #ifndef TLSIO_OPERATION_TIMEOUT_SECONDS
 #define TLSIO_OPERATION_TIMEOUT_SECONDS 40
 #endif // !TLSIO_OPERATION_TIMEOUT_SECONDS
 
 #define MAX_VALID_PORT 0xffff
 
+/* Codes_SRS_TLSIO_30_004: [ Tlsio implementations which use an internal buffer to pass data into the  on_bytes_received  callback shall define the size of this buffer with the internally defined  TLSIO_RECEIVE_BUFFER_SIZE  value ]*/
 // The TLSIO_RECEIVE_BUFFER_SIZE has very little effect on performance, and is kept small
 // to minimize memory consumption.
 #ifndef TLSIO_RECEIVE_BUFFER_SIZE
@@ -44,7 +45,7 @@ typedef struct PENDING_SOCKET_IO_TAG
 
 typedef enum TLSIO_STATE_TAG
 {
-    TLSIO_STATE_NOT_OPEN,
+    TLSIO_STATE_CLOSED,
     TLSIO_STATE_OPENING_WAITING_DNS,
     TLSIO_STATE_OPENING_WAITING_SOCKET,
     TLSIO_STATE_OPENING_WAITING_SSL,
@@ -120,7 +121,8 @@ static void enter_open_error_state(TLS_IO_INSTANCE* tls_io_instance)
 {
     tls_io_instance->tlsio_state = TLSIO_STATE_ERROR;
     // on_open_complete has already been checked for non-NULL
-    tls_io_instance->on_open_complete(tls_io_instance->on_open_complete_context, IO_OPEN_ERROR);
+	/* Codes_SRS_TLSIO_30_005: [ When the adapter enters TLSIO_STATE_EXT_ERROR it shall call the  on_io_error function and pass the on_io_error_context that were supplied in  tlsio_open . ]*/
+	tls_io_instance->on_open_complete(tls_io_instance->on_open_complete_context, IO_OPEN_ERROR);
 }
 
 static void check_for_open_timeout(TLS_IO_INSTANCE* tls_io_instance)
@@ -179,7 +181,7 @@ static void internal_close(TLS_IO_INSTANCE* tls_io_instance)
     tls_io_instance->on_io_error = NULL;
     tls_io_instance->on_bytes_received_context = NULL;
     tls_io_instance->on_io_error_context = NULL;
-    tls_io_instance->tlsio_state = TLSIO_STATE_NOT_OPEN;
+    tls_io_instance->tlsio_state = TLSIO_STATE_CLOSED;
     tls_io_instance->on_open_complete = NULL;
     tls_io_instance->on_open_complete_context = NULL;
 }
@@ -277,7 +279,7 @@ CONCRETE_IO_HANDLE tlsio_openssl_create(void* io_create_parameters)
                     memset(result, 0, sizeof(TLS_IO_INSTANCE));
                     result->struct_size = sizeof(TLS_IO_INSTANCE);
                     result->port = (uint16_t)tls_io_config->port;
-                    result->tlsio_state = TLSIO_STATE_NOT_OPEN;
+                    result->tlsio_state = TLSIO_STATE_CLOSED;
                     result->sock = SOCKET_ASYNC_INVALID_SOCKET;
                     result->hostname = NULL;
                     result->dns = NULL;
@@ -354,10 +356,10 @@ int tlsio_openssl_open(CONCRETE_IO_HANDLE tls_io,
                 }
                 else
                 {
-                    if (tls_io_instance->tlsio_state != TLSIO_STATE_NOT_OPEN)
+                    if (tls_io_instance->tlsio_state != TLSIO_STATE_CLOSED)
                     {
                         /* Codes_SRS_TLSIO_OPENSSL_COMPACT_30_037: [ If tlsio_openssl_compact_open has already been called, it shall log an error, and return FAILURE. ]*/
-                        LogError("Invalid tlsio_state. Expected state is TLSIO_STATE_NOT_OPEN.");
+                        LogError("Invalid tlsio_state. Expected state is TLSIO_STATE_CLOSED.");
                         result = __FAILURE__;
                     }
                     else
@@ -424,7 +426,7 @@ int tlsio_openssl_close(CONCRETE_IO_HANDLE tls_io, ON_IO_CLOSE_COMPLETE on_io_cl
         }
         else
         {
-            if (tls_io_instance->tlsio_state == TLSIO_STATE_NOT_OPEN)
+            if (tls_io_instance->tlsio_state == TLSIO_STATE_CLOSED)
             {
                 /* Codes_SRS_TLSIO_OPENSSL_COMPACT_30_053: [ If tlsio_openssl_compact_open has not been called previously then tlsio_openssl_compact_close shall log an error and return FAILURE. ]*/
                 result = __FAILURE__;
@@ -828,7 +830,7 @@ void tlsio_openssl_dowork(CONCRETE_IO_HANDLE tls_io)
         // This switch statement handles all of the state transitions during the opening process
         switch (tls_io_instance->tlsio_state)
         {
-        case TLSIO_STATE_NOT_OPEN:
+        case TLSIO_STATE_CLOSED:
             /* Codes_SRS_TLSIO_OPENSSL_COMPACT_30_075: [ If tlsio_openssl_compact_dowork is called before tlsio_openssl_compact_open, tlsio_openssl_compact_dowork shall do nothing. ]*/
             // Waiting to be opened, nothing to do
             break;
@@ -934,5 +936,5 @@ const IO_INTERFACE_DESCRIPTION* tlsio_get_interface_description(void)
 }
 
 #ifdef TLSIO_STATE_VERIFICATION_ENABLE
-#include "debug_api.h"
+#include "debug_api_impl.h"
 #endif

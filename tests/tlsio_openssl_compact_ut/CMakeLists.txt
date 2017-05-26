@@ -25,6 +25,7 @@ test_defines.h
 gballoc_ut_impl_1.h
 gballoc_ut_impl_2.h
 debug_api.h
+debug_api_impl.h
 )
 
 include_directories(.)
