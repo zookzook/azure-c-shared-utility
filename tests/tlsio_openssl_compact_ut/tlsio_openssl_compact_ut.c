@@ -26,20 +26,8 @@
  *    if you define these mock functions after include the gballoc.h, you will create an infinity recursion,
  *    so, places the my_gballoc functions before the #include "azure_c_shared_utility/gballoc.h"
  */
-static void* my_gballoc_malloc(size_t size)
-{
-    return malloc(size);
-}
+#include "gballoc_ut_impl_1.h"
 
-static void* my_gballoc_realloc(void* ptr, size_t size)
-{
-    return realloc(ptr, size);
-}
-
-static void my_gballoc_free(void* ptr)
-{
-    free(ptr);
-}
 
  /**
  * Include the mockable headers here.
@@ -74,9 +62,11 @@ static int my_socket_async_is_create_complete(SOCKET_ASYNC_HANDLE sock, bool* is
 #include "azure_c_shared_utility/xio.h"
 
 // These "headers" are actually source files that are broken out of this file for readability
+#include "debug_api.h"
 #include "ssl_errors.h"
 #include "callbacks.h"
 #include "test_defines.h"
+#include "gballoc_ut_impl_2.h"
 
  /**
   * Umock error will helps you to identify errors in the test suite or in the way that you are 
@@ -198,6 +188,7 @@ BEGIN_TEST_SUITE(tlsio_openssl_compact_unittests)
 
         umock_c_reset_all_calls();
         reset_callback_context_records();
+		init_gballoc_checks();
     }
 
     /**
@@ -206,7 +197,7 @@ BEGIN_TEST_SUITE(tlsio_openssl_compact_unittests)
      */
     TEST_FUNCTION_CLEANUP(cleans)
     {
-        if (negative_mocks_used)
+		if (negative_mocks_used)
         {
             negative_mocks_used = false;
             umock_c_negative_tests_deinit();
@@ -272,8 +263,9 @@ BEGIN_TEST_SUITE(tlsio_openssl_compact_unittests)
 
         ///cleanup
         tlsio_id->concrete_io_close(tlsio, on_io_close_complete, NULL);
-        tlsio_id->concrete_io_destroy(tlsio);
-    }
+		tlsio_id->concrete_io_destroy(tlsio);
+		assert_gballoc_checks();
+	}
 
     /* Tests_SRS_TLSIO_OPENSSL_COMPACT_30_040: [ tlsio_openssl_compact_open shall succeed during a 'Failed open retry' as defined at the top of this document. ]*/
     TEST_FUNCTION(tlsio_openssl_compact__retry_open_after_open_failure__succeeds)
@@ -317,7 +309,8 @@ BEGIN_TEST_SUITE(tlsio_openssl_compact_unittests)
         ///cleanup
         tlsio_id->concrete_io_close(tlsio, on_io_close_complete, NULL);
         tlsio_id->concrete_io_destroy(tlsio);
-    }
+		assert_gballoc_checks();
+	}
 
     /* Tests_SRS_TLSIO_OPENSSL_COMPACT_30_050: [ If the tlsio_handle parameter is NULL, tlsio_openssl_compact_close shall log an error and return FAILURE. ]*/
     /* Tests_SRS_TLSIO_OPENSSL_COMPACT_30_055: [ If the on_io_close_complete parameter is NULL, tlsio_openssl_compact_close shall log an error and return FAILURE. ]*/
@@ -351,7 +344,8 @@ BEGIN_TEST_SUITE(tlsio_openssl_compact_unittests)
 
         ///cleanup
         tlsio_id->concrete_io_destroy(tlsio);
-    }
+		assert_gballoc_checks();
+	}
 
     /* Tests_SRS_TLSIO_OPENSSL_COMPACT_30_056: [ If tlsio_openssl_compact_close is called while there are unsent messages in the queue, the tlsio_openssl_compact_close shall call each message's on_send_complete, passing its associated callback_context and IO_SEND_CANCELLED. ]*/
     TEST_FUNCTION(tlsio_openssl_compact__close_with_unsent_messages__succeeds)
@@ -399,7 +393,8 @@ BEGIN_TEST_SUITE(tlsio_openssl_compact_unittests)
         ///cleanup
         tlsio_id->concrete_io_close(tlsio, on_io_close_complete, NULL);
         tlsio_id->concrete_io_destroy(tlsio);
-    }
+		assert_gballoc_checks();
+	}
 
     /* Tests_SRS_TLSIO_OPENSSL_COMPACT_30_052: [ The tlsio_openssl_compact_close return value shall be 0 unless tlsio_openssl_compact_open has not been called previously. ]*/
     /* Tests_SRS_TLSIO_OPENSSL_COMPACT_30_057: [ When the closing process is complete, tlsio_openssl_compact_close shall call on_io_close_complete and pass the callback_context as a parameter. ]*/
@@ -423,7 +418,8 @@ BEGIN_TEST_SUITE(tlsio_openssl_compact_unittests)
         ///cleanup
         tlsio_id->concrete_io_close(tlsio, on_io_close_complete, NULL);
         tlsio_id->concrete_io_destroy(tlsio);
-    }
+		assert_gballoc_checks();
+	}
 
     /* Tests_SRS_TLSIO_OPENSSL_COMPACT_30_052: [ The tlsio_openssl_compact_close return value shall be 0 unless tlsio_openssl_compact_open has not been called previously. ]*/
     /* Tests_SRS_TLSIO_OPENSSL_COMPACT_30_057: [ When the closing process is complete, tlsio_openssl_compact_close shall call on_io_close_complete and pass the callback_context as a parameter. ]*/
@@ -457,7 +453,8 @@ BEGIN_TEST_SUITE(tlsio_openssl_compact_unittests)
         ///cleanup
         tlsio_id->concrete_io_close(tlsio, on_io_close_complete, NULL);
         tlsio_id->concrete_io_destroy(tlsio);
-    }
+		assert_gballoc_checks();
+	}
 
     /* Tests_SRS_TLSIO_OPENSSL_COMPACT_30_054: [ If tlsio_openssl_compact_open has been called but the process of opening has not been completed, then the on_io_open_complete callback shall be made with IO_OPEN_CANCELLED. ]*/
     TEST_FUNCTION(tlsio_openssl_compact__close_while_opening__succeeds)
@@ -534,7 +531,8 @@ BEGIN_TEST_SUITE(tlsio_openssl_compact_unittests)
         ///cleanup
         tlsio_id->concrete_io_close(tlsio, on_io_close_complete, NULL);
         tlsio_id->concrete_io_destroy(tlsio);
-    }
+		assert_gballoc_checks();
+	}
 
     /* Tests_SRS_TLSIO_OPENSSL_COMPACT_30_072: [ If tlsio_openssl_compact_dowork ever calls on_io_error, then subsequent calls to tlsio_openssl_compact_dowork shall do nothing. ]*/
     TEST_FUNCTION(tlsio_openssl_compact__dowork_send_post_error_do_nothing__succeeds)
@@ -568,7 +566,8 @@ BEGIN_TEST_SUITE(tlsio_openssl_compact_unittests)
         ///cleanup
         tlsio_id->concrete_io_close(tlsio, on_io_close_complete, NULL);
         tlsio_id->concrete_io_destroy(tlsio);
-    }
+		assert_gballoc_checks();
+	}
 
     /* Tests_SRS_TLSIO_OPENSSL_COMPACT_30_092: [ If the send process for any given message takes longer than the internally defined TLSIO_OPERATION_TIMEOUT_SECONDS it call the message's on_send_complete along with its associated callback_context and IO_SEND_ERROR. ]*/
     /* Tests_SRS_TLSIO_OPENSSL_COMPACT_30_094: [ If the send process encounters an internal error or calls on_send_complete with IO_SEND_ERROR due to either failure or timeout, it shall also call on_io_error and pass in the associated on_io_error_context. ]*/
@@ -603,7 +602,8 @@ BEGIN_TEST_SUITE(tlsio_openssl_compact_unittests)
         ///cleanup
         tlsio_id->concrete_io_close(tlsio, on_io_close_complete, NULL);
         tlsio_id->concrete_io_destroy(tlsio);
-    }
+		assert_gballoc_checks();
+	}
 
     /* Tests_SRS_TLSIO_OPENSSL_COMPACT_30_092: [ If the send process for any given message takes longer than the internally defined TLSIO_OPERATION_TIMEOUT_SECONDS it call the message's on_send_complete along with its associated callback_context and IO_SEND_ERROR. ]*/
     /* Tests_SRS_TLSIO_OPENSSL_COMPACT_30_094: [ If the send process encounters an internal error or calls on_send_complete with IO_SEND_ERROR due to either failure or timeout, it shall also call on_io_error and pass in the associated on_io_error_context. ]*/
@@ -640,7 +640,8 @@ BEGIN_TEST_SUITE(tlsio_openssl_compact_unittests)
         ///cleanup
         tlsio_id->concrete_io_close(tlsio, on_io_close_complete, NULL);
         tlsio_id->concrete_io_destroy(tlsio);
-    }
+		assert_gballoc_checks();
+	}
 
     /* Tests_SRS_TLSIO_OPENSSL_COMPACT_30_093: [ If the OpenSSL send was not able to send an entire enqueued message at once, subsequent calls to tlsio_openssl_compact_dowork shall repeat OpenSSL send for the remaining bytes. ]*/
     TEST_FUNCTION(tlsio_openssl_compact__dowork_send_big_message__succeeds)
@@ -679,7 +680,8 @@ BEGIN_TEST_SUITE(tlsio_openssl_compact_unittests)
         ///cleanup
         tlsio_id->concrete_io_close(tlsio, on_io_close_complete, NULL);
         tlsio_id->concrete_io_destroy(tlsio);
-    }
+		assert_gballoc_checks();
+	}
 
     /* Tests_SRS_TLSIO_OPENSSL_COMPACT_30_091: [ If tlsio_openssl_compact_dowork is able to send all the bytes in an enqueued message, it shall call the messages's on_send_complete along with its associated callback_context and IO_SEND_OK. ]*/
     TEST_FUNCTION(tlsio_openssl_compact__dowork_send__succeeds)
@@ -713,7 +715,8 @@ BEGIN_TEST_SUITE(tlsio_openssl_compact_unittests)
         ///cleanup
         tlsio_id->concrete_io_close(tlsio, on_io_close_complete, NULL);
         tlsio_id->concrete_io_destroy(tlsio);
-    }
+		assert_gballoc_checks();
+	}
 
     /* Tests_SRS_TLSIO_OPENSSL_COMPACT_30_090: [ If an enqueued message size is 0, the tlsio_openssl_compact_dowork shall just call the on_send_complete with the callback_context and IO_SEND_OK. ]*/
     TEST_FUNCTION(tlsio_openssl_compact__dowork_send_empty_message__succeeds)
@@ -749,7 +752,8 @@ BEGIN_TEST_SUITE(tlsio_openssl_compact_unittests)
         ///cleanup
         tlsio_id->concrete_io_close(tlsio, on_io_close_complete, NULL);
         tlsio_id->concrete_io_destroy(tlsio);
-    }
+		assert_gballoc_checks();
+	}
 
     /* Tests_SRS_TLSIO_OPENSSL_COMPACT_30_096: [ If there are no enqueued messages available, tlsio_openssl_compact_dowork shall do nothing. ]*/
     TEST_FUNCTION(tlsio_openssl_compact__dowork_send_empty_queue__succeeds)
@@ -777,7 +781,8 @@ BEGIN_TEST_SUITE(tlsio_openssl_compact_unittests)
         ///cleanup
         tlsio_id->concrete_io_close(tlsio, on_io_close_complete, NULL);
         tlsio_id->concrete_io_destroy(tlsio);
-    }
+		assert_gballoc_checks();
+	}
 
     /* Tests_SRS_TLSIO_OPENSSL_COMPACT_30_063: [ The tlsio_openssl_compact_send shall enqueue for transmission the on_send_complete, the callback_context, the size, and the contents of buffer. ]*/
     TEST_FUNCTION(tlsio_openssl_compact__send__succeeds)
@@ -803,7 +808,8 @@ BEGIN_TEST_SUITE(tlsio_openssl_compact_unittests)
         ///cleanup
         tlsio_id->concrete_io_close(tlsio, on_io_close_complete, NULL);
         tlsio_id->concrete_io_destroy(tlsio);
-    }
+		assert_gballoc_checks();
+	}
 
     /* Tests_SRS_TLSIO_OPENSSL_COMPACT_30_064: [ If the supplied message cannot be enqueued for transmission, tlsio_openssl_compact_send shall return FAILURE. ]*/
     TEST_FUNCTION(tlsio_openssl_compact__send_unhappy_paths__fails)
@@ -841,7 +847,8 @@ BEGIN_TEST_SUITE(tlsio_openssl_compact_unittests)
         }
 
         ///cleanup
-    }
+		assert_gballoc_checks();
+	}
 
     /* Tests_SRS_TLSIO_OPENSSL_COMPACT_30_060: [ If the tlsio_handle parameter is NULL, tlsio_openssl_compact_send shall log an error and return FAILURE. ]*/
     /* Tests_SRS_TLSIO_OPENSSL_COMPACT_30_061: [ If the buffer is NULL, tlsio_openssl_compact_send shall log the error and return FAILURE. ]*/
@@ -880,7 +887,8 @@ BEGIN_TEST_SUITE(tlsio_openssl_compact_unittests)
 
         ///cleanup
         tlsio_id->concrete_io_destroy(tlsio);
-    }
+		assert_gballoc_checks();
+	}
 
     /* Tests_SRS_TLSIO_OPENSSL_COMPACT_30_065: [ If tlsio_openssl_compact_open has not been called or the opening process has not been completed, tlsio_openssl_compact_send shall log an error and return FAILURE. ]*/
     TEST_FUNCTION(tlsio_openssl_compact__send_not_open__fails)
@@ -898,7 +906,8 @@ BEGIN_TEST_SUITE(tlsio_openssl_compact_unittests)
 
         ///cleanup
         tlsio_id->concrete_io_destroy(tlsio);
-    }
+		assert_gballoc_checks();
+	}
 
     /* Tests_SRS_TLSIO_OPENSSL_COMPACT_30_102: [ If the OpenSSL client gets no data from its SSL_recv call then it shall not call the on_bytes_received callback. ]*/
     TEST_FUNCTION(tlsio_openssl_compact__dowork_receive_no_data__succeeds)
@@ -925,7 +934,8 @@ BEGIN_TEST_SUITE(tlsio_openssl_compact_unittests)
         ///cleanup
         tlsio_id->concrete_io_close(tlsio, on_io_close_complete, NULL);
         tlsio_id->concrete_io_destroy(tlsio);
-    }
+		assert_gballoc_checks();
+	}
 
     /* Tests_SRS_TLSIO_OPENSSL_COMPACT_30_100: [ If the OpenSSL client is able to provide received data, the tlsio_openssl_compact_dowork shall read this data and call on_bytes_received with the pointer to the buffer containing the data, the number of bytes received, and the on_bytes_received_context. ]*/
     TEST_FUNCTION(tlsio_openssl_compact__dowork_receive__succeeds)
@@ -953,7 +963,8 @@ BEGIN_TEST_SUITE(tlsio_openssl_compact_unittests)
         ///cleanup
         tlsio_id->concrete_io_close(tlsio, on_io_close_complete, NULL);
         tlsio_id->concrete_io_destroy(tlsio);
-    }
+		assert_gballoc_checks();
+	}
 
     /* Tests_SRS_TLSIO_OPENSSL_COMPACT_30_076: [ If tlsio_openssl_compact_dowork is called after tlsio_openssl_compact_close, tlsio_openssl_compact_dowork shall do nothing. ]*/
     TEST_FUNCTION(tlsio_openssl_compact__dowork_post_close__succeeds)
@@ -991,7 +1002,8 @@ BEGIN_TEST_SUITE(tlsio_openssl_compact_unittests)
 
         ///cleanup
         tlsio_id->concrete_io_destroy(tlsio);
-    }
+		assert_gballoc_checks();
+	}
 
 
     /* Tests_SRS_TLSIO_OPENSSL_COMPACT_30_082: [ If the connection process fails for any reason, tlsio_openssl_compact_dowork shall log an error and call on_io_open_complete with the on_io_open_complete_context parameter provided in tlsio_openssl_compact_open and IO_OPEN_ERROR. ]*/
@@ -1070,7 +1082,8 @@ BEGIN_TEST_SUITE(tlsio_openssl_compact_unittests)
         }
 
         ///cleanup
-    }
+		assert_gballoc_checks();
+	}
 
     /* Tests_SRS_TLSIO_OPENSSL_COMPACT_30_080: [ The tlsio_openssl_compact_dowork shall establish an OpenSSL connection using the hostName and port provided during tlsio_openssl_compact_open. ]*/
     /* Tests_SRS_TLSIO_OPENSSL_COMPACT_30_083: [ If tlsio_openssl_compact_dowork successfully opens the ssl connection it shall call on_io_open_complete with the on_io_open_complete_context parameter provided in tlsio_openssl_compact_open and IO_OPEN_OK. ]*/
@@ -1137,7 +1150,8 @@ BEGIN_TEST_SUITE(tlsio_openssl_compact_unittests)
         ///cleanup
         tlsio_id->concrete_io_close(tlsio, on_io_close_complete, NULL);
         tlsio_id->concrete_io_destroy(tlsio);
-    }
+		assert_gballoc_checks();
+	}
 
     /* Tests_SRS_TLSIO_OPENSSL_COMPACT_30_075: [ If tlsio_openssl_compact_dowork is called before tlsio_openssl_compact_open, tlsio_openssl_compact_dowork shall do nothing. ]*/
     TEST_FUNCTION(tlsio_openssl_compact__dowork_pre_open__succeeds)
@@ -1157,7 +1171,8 @@ BEGIN_TEST_SUITE(tlsio_openssl_compact_unittests)
 
         ///cleanup
         tlsio_id->concrete_io_destroy(tlsio);
-    }
+		assert_gballoc_checks();
+	}
 
     /* Tests_SRS_TLSIO_OPENSSL_COMPACT_30_070: [ If the tlsio_handle parameter is NULL, tlsio_openssl_compact_dowork shall do nothing except log an error. ]*/
     TEST_FUNCTION(tlsio_openssl_compact__dowork_parameter_validation__fails)
@@ -1172,7 +1187,8 @@ BEGIN_TEST_SUITE(tlsio_openssl_compact_unittests)
         ASSERT_NO_CALLBACKS();
 
         ///cleanup
-    }
+		assert_gballoc_checks();
+	}
 
     /* Tests_SRS_TLSIO_OPENSSL_COMPACT_30_036: [ If tlsio_openssl_compact_open successfully begins opening the OpenSSL connection, it shall return 0. ]*/
     TEST_FUNCTION(tlsio_openssl_compact__open__succeeds)
@@ -1198,7 +1214,8 @@ BEGIN_TEST_SUITE(tlsio_openssl_compact_unittests)
 
         ///cleanup
         tlsio_id->concrete_io_destroy(tlsio);
-    }
+		assert_gballoc_checks();
+	}
 
     /* Tests_SRS_TLSIO_OPENSSL_COMPACT_30_037: [ If tlsio_openssl_compact_open has already been called, it shall log an error, and return FAILURE. ]*/
     TEST_FUNCTION(tlsio_openssl_compact__open_unhappy_paths__fails)
@@ -1221,7 +1238,8 @@ BEGIN_TEST_SUITE(tlsio_openssl_compact_unittests)
 
         ///cleanup
         tlsio_id->concrete_io_destroy(tlsio);
-    }
+		assert_gballoc_checks();
+	}
 
     /* Tests_SRS_TLSIO_OPENSSL_COMPACT_30_030: [ If the tlsio_handle parameter is NULL, tlsio_openssl_compact_open shall log an error and return FAILURE. ]*/
     /* Tests_SRS_TLSIO_OPENSSL_COMPACT_30_031: [ If the on_io_open_complete parameter is NULL, tlsio_openssl_compact_open shall log an error and return FAILURE. ]*/
@@ -1264,7 +1282,8 @@ BEGIN_TEST_SUITE(tlsio_openssl_compact_unittests)
             ///cleanup
             tlsio_id->concrete_io_destroy(tlsio);
         }
-    }
+		assert_gballoc_checks();
+	}
 
     /* Tests_SRS_TLSIO_OPENSSL_COMPACT_30_123 [ The tlsio_openssl_compact_setoption shall do nothing and return 0. ]*/
     TEST_FUNCTION(tlsio_openssl_compact__setoption__succeeds)
@@ -1283,7 +1302,8 @@ BEGIN_TEST_SUITE(tlsio_openssl_compact_unittests)
 
         ///cleanup
         tlsio_id->concrete_io_destroy(tlsio);
-    }
+		assert_gballoc_checks();
+	}
 
     /* Tests_SRS_TLSIO_OPENSSL_COMPACT_30_120: [ If the tlsio_handle parameter is NULL, tlsio_openssl_compact_setoption shall do nothing except log an error and return FAILURE. ]*/
     /* Tests_SRS_TLSIO_OPENSSL_COMPACT_30_121: [ If the optionName parameter is NULL, tlsio_openssl_compact_setoption shall do nothing except log an error and return FAILURE. ]*/
@@ -1322,7 +1342,8 @@ BEGIN_TEST_SUITE(tlsio_openssl_compact_unittests)
             ///cleanup
             tlsio_id->concrete_io_destroy(tlsio);
         }
-    }
+		assert_gballoc_checks();
+	}
 
     /* Tests_SRS_TLSIO_OPENSSL_COMPACT_30_160: [ If the tlsio_handle parameter is NULL, tlsio_openssl_compact_retrieveoptions shall do nothing except log an error and return FAILURE. ]*/
     TEST_FUNCTION(tlsio_openssl_compact__retrieveoptions_parameter_validation__fails)
@@ -1337,7 +1358,8 @@ BEGIN_TEST_SUITE(tlsio_openssl_compact_unittests)
         ASSERT_IS_NULL((void*)result);
 
         ///cleanup
-    }
+		assert_gballoc_checks();
+	}
 
     /* Tests_SRS_TLSIO_OPENSSL_COMPACT_30_161: [ The tlsio_openssl_compact_retrieveoptions shall do nothing and return NULL. ]*/
     TEST_FUNCTION(tlsio_openssl_compact__retrieveoptions__fails)
@@ -1356,7 +1378,8 @@ BEGIN_TEST_SUITE(tlsio_openssl_compact_unittests)
 
         ///cleanup
         tlsio_id->concrete_io_destroy(tlsio);
-    }
+		assert_gballoc_checks();
+	}
 
     /* Tests_SRS_TLSIO_OPENSSL_COMPACT_30_013: [ If the io_create_parameters value is NULL, tlsio_openssl_compact_create shall log an error and return NULL. ]*/
     /* Tests_SRS_TLSIO_OPENSSL_COMPACT_30_014: [ If the hostname member of io_create_parameters value is NULL, tlsio_openssl_compact_create shall log an error and return NULL. ]*/
@@ -1382,7 +1405,8 @@ BEGIN_TEST_SUITE(tlsio_openssl_compact_unittests)
             ///assert
             ASSERT_IS_NULL_WITH_MSG(result, p[i].fail_msg);
         }
-    }
+		assert_gballoc_checks();
+	}
 
     /* Tests_SRS_TLSIO_OPENSSL_COMPACT_30_011: [ If any resource allocation fails, tlsio_openssl_compact_create shall return NULL. ]*/
     TEST_FUNCTION(tlsio_openssl_compact__create_unhappy_paths__fails)
@@ -1410,7 +1434,8 @@ BEGIN_TEST_SUITE(tlsio_openssl_compact_unittests)
         }
 
         ///cleanup
-    }
+		assert_gballoc_checks();
+	}
 
     /* Tests_SRS_TLSIO_OPENSSL_COMPACT_30_010: [ The tlsio_openssl_compact_create shall allocate and initialize all necessary resources and return an instance of the tlsio_openssl_compact. ]*/
     /* Tests_SRS_TLSIO_OPENSSL_COMPACT_30_016: [ tlsio_openssl_compact_create shall make a copy of the hostname member of io_create_parameters to allow deletion of hostname immediately after the call. ]*/
@@ -1433,7 +1458,8 @@ BEGIN_TEST_SUITE(tlsio_openssl_compact_unittests)
 
         ///cleanup
         tlsio_id->concrete_io_destroy(result);
-    }
+		assert_gballoc_checks();
+	}
 
     /* Tests_SRS_TLSIO_OPENSSL_COMPACT_30_020: [ If tlsio_handle is NULL, tlsio_openssl_compact_destroy shall do nothing. ]*/
     TEST_FUNCTION(tlsio_openssl_compact__destroy_parameter_validation__fails)
@@ -1448,7 +1474,8 @@ BEGIN_TEST_SUITE(tlsio_openssl_compact_unittests)
         // can't really check anything here
 
         ///cleanup
-    }
+		assert_gballoc_checks();
+	}
 
     /* Tests_SRS_TLSIO_OPENSSL_COMPACT_30_021: [ The tlsio_openssl_compact_destroy shall release all allocated resources and then release tlsio_handle. ]*/
     TEST_FUNCTION(tlsio_openssl_compact__destroy_unopened__succeeds)
@@ -1470,7 +1497,8 @@ BEGIN_TEST_SUITE(tlsio_openssl_compact_unittests)
         ASSERT_ARE_EQUAL(char_ptr, umock_c_get_expected_calls(), umock_c_get_actual_calls());
 
         ///cleanup
-    }
+		assert_gballoc_checks();
+	}
 
     /* Tests_SRS_TLSIO_OPENSSL_COMPACT_30_008: [ The tlsio_get_interface_description shall return the VTable IO_INTERFACE_DESCRIPTION. ]*/
     /* Tests_SRS_TLSIO_OPENSSL_COMPACT_30_001: [ The tlsio_openssl_compact shall implement and export all the Concrete functions in the VTable IO_INTERFACE_DESCRIPTION defined in the xio.h. ] */
@@ -1489,6 +1517,7 @@ BEGIN_TEST_SUITE(tlsio_openssl_compact_unittests)
         ASSERT_IS_NOT_NULL(tlsio_id->concrete_io_retrieveoptions);
         ASSERT_IS_NOT_NULL(tlsio_id->concrete_io_send);
         ASSERT_IS_NOT_NULL(tlsio_id->concrete_io_setoption);
-    }
+		assert_gballoc_checks();
+	}
 
 END_TEST_SUITE(tlsio_openssl_compact_unittests)

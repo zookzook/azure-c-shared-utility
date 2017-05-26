@@ -6,6 +6,8 @@ cmake_minimum_required(VERSION 2.8.11)
 compileAsC11()
 set(theseTestsName tlsio_openssl_compact_ut)
 
+add_definitions(-DTLSIO_STATE_VERIFICATION_ENABLE)
+
 set(${theseTestsName}_test_files
 ${theseTestsName}.c
 )
@@ -20,6 +22,9 @@ set(${theseTestsName}_h_files
 callbacks.h
 ssl_errors.h
 test_defines.h
+gballoc_ut_impl_1.h
+gballoc_ut_impl_2.h
+debug_api.h
 )
 
 include_directories(.)

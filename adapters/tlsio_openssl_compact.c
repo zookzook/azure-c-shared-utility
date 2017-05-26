@@ -934,4 +934,5 @@ const IO_INTERFACE_DESCRIPTION* tlsio_get_interface_description(void)
 }
 
 #ifdef TLSIO_STATE_VERIFICATION_ENABLE
+#include "debug_api.h"
 #endif

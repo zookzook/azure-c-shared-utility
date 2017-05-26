@@ -12,7 +12,6 @@ extern "C" {
 
 MOCKABLE_FUNCTION(, const IO_INTERFACE_DESCRIPTION*, tlsio_get_interface_description);
 
-
 typedef struct TLSIO_CONFIG_TAG
 {
     const char* hostname;
