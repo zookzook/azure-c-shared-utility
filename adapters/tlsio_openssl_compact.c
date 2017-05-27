@@ -327,24 +327,25 @@ int tlsio_openssl_open(CONCRETE_IO_HANDLE tls_io,
 {
 
 	int result;
-	TLS_IO_INSTANCE* tls_io_instance = (TLS_IO_INSTANCE*)tls_io;
-	if (tls_io == NULL)
+	if (on_io_open_complete == NULL)
 	{
-		/* Codes_SRS_TLSIO_30_030: [ If the tlsio_handle parameter is NULL, tlsio_open shall log an error and return FAILURE. ]*/
+		/* Codes_SRS_TLSIO_30_031: [ If the on_io_open_complete parameter is NULL, tlsio_open shall log an error and return FAILURE. ]*/
+		LogError("Required parameter on_io_open_complete is NULL");
 		result = __FAILURE__;
-		LogError(null_tlsio_message);
 	}
 	else
 	{
-		tls_io_instance->operation_timeout_end_time = get_time(NULL) + TLSIO_OPERATION_TIMEOUT_SECONDS;
-		if (on_io_open_complete == NULL)
+		if (tls_io == NULL)
 		{
-			/* Codes_SRS_TLSIO_30_031: [ If the on_io_open_complete parameter is NULL, tlsio_open shall log an error and return FAILURE. ]*/
-			LogError("Required parameter on_io_open_complete is NULL");
+			/* Codes_SRS_TLSIO_30_030: [ If the tlsio_handle parameter is NULL, tlsio_open shall log an error and return FAILURE. ]*/
 			result = __FAILURE__;
+			LogError(null_tlsio_message);
 		}
 		else
 		{
+			TLS_IO_INSTANCE* tls_io_instance = (TLS_IO_INSTANCE*)tls_io;
+			tls_io_instance->operation_timeout_end_time = get_time(NULL) + TLSIO_OPERATION_TIMEOUT_SECONDS;
+
 			if (on_bytes_received == NULL)
 			{
 				/* Codes_SRS_TLSIO_30_032: [ If the on_bytes_received parameter is NULL, tlsio_open shall log an error and return FAILURE. ]*/
@@ -397,12 +398,12 @@ int tlsio_openssl_open(CONCRETE_IO_HANDLE tls_io,
 				}
 			}
 		}
-	}
 
-	if (result != 0 && on_io_open_complete != NULL)
-	{
-		/* Codes_SRS_TLSIO_30_039: [ If the tlsio_open returns FAILURE it shall call on_io_open_complete with the provided on_io_open_complete_context and IO_OPEN_ERROR. ]*/
-		on_io_open_complete(on_io_open_complete_context, IO_OPEN_ERROR);
+		if (result != 0)
+		{
+			/* Codes_SRS_TLSIO_30_039: [ If the tlsio_open returns FAILURE it shall call on_io_open_complete with the provided on_io_open_complete_context and IO_OPEN_ERROR. ]*/
+			on_io_open_complete(on_io_open_complete_context, IO_OPEN_ERROR);
+		}
 	}
 
 	return result;
