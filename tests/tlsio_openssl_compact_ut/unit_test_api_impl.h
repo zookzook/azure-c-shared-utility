@@ -4,7 +4,7 @@
 // This file is made an integral part of a tlsio adapter implementation with a #include. It
 // is broken out for readability. 
 
-#include "debug_api.h"
+#include "unit_test_api.h"
 
 // tlsio_verify_internal_state compares the supplied expected_state with the internal state
 // of the tlsio adapter, and the expected_message_queue_length with the actual

@@ -62,7 +62,7 @@ static int my_socket_async_is_create_complete(SOCKET_ASYNC_HANDLE sock, bool* is
 #include "azure_c_shared_utility/xio.h"
 
 // These "headers" are actually source files that are broken out of this file for readability
-#include "debug_api.h"
+#include "unit_test_api.h"
 #include "ssl_errors.h"
 #include "callbacks.h"
 #include "test_defines.h"
@@ -823,12 +823,13 @@ BEGIN_TEST_SUITE(tlsio_openssl_compact_unittests)
 	}
 
     /* Tests_SRS_TLSIO_30_064: [ If the supplied message cannot be enqueued for transmission, tlsio_openssl_compact_send shall return FAILURE. ]*/
-    TEST_FUNCTION(tlsio_openssl_compact__send_unhappy_paths__fails)
+	/* Tests_SRS_TLSIO_30_066: [ On failure, a non-NULL on_send_complete shall be called with callback_context and IO_SEND_ERROR. ]*/
+	TEST_FUNCTION(tlsio_openssl_compact__send_unhappy_paths__fails)
     {
         ///arrange
         use_negative_mocks();
 
-        STRICT_EXPECTED_CALL(gballoc_malloc(IGNORED_NUM_ARG));  // PENDING_SOCKET_IO
+        STRICT_EXPECTED_CALL(gballoc_malloc(IGNORED_NUM_ARG));  // PENDING_TRANSMISSION
         STRICT_EXPECTED_CALL(gballoc_malloc(IGNORED_NUM_ARG));  // message bytes
         STRICT_EXPECTED_CALL(gballoc_malloc(IGNORED_NUM_ARG));  // singlylinkedlist_add
         umock_c_negative_tests_snapshot();
@@ -863,8 +864,9 @@ BEGIN_TEST_SUITE(tlsio_openssl_compact_unittests)
 
     /* Tests_SRS_TLSIO_30_060: [ If the tlsio_handle parameter is NULL, tlsio_openssl_compact_send shall log an error and return FAILURE. ]*/
     /* Tests_SRS_TLSIO_30_061: [ If the buffer is NULL, tlsio_openssl_compact_send shall log the error and return FAILURE. ]*/
-    /* Tests_SRS_TLSIO_30_062: [ If the on_send_complete is NULL, tlsio_openssl_compact_send shall log the error and return FAILURE. ]*/
-    TEST_FUNCTION(tlsio_openssl_compact__send_parameter_validation__fails)
+	/* Tests_SRS_TLSIO_30_062: [ If the on_send_complete is NULL, tlsio_openssl_compact_send shall log the error and return FAILURE. ]*/
+	/* Tests_SRS_TLSIO_30_066: [ On failure, a non-NULL on_send_complete shall be called with callback_context and IO_SEND_ERROR. ]*/
+	TEST_FUNCTION(tlsio_openssl_compact__send_parameter_validation__fails)
     {
         ///arrange
         const IO_INTERFACE_DESCRIPTION* tlsio_id = tlsio_get_interface_description();
@@ -885,6 +887,7 @@ BEGIN_TEST_SUITE(tlsio_openssl_compact_unittests)
         for (int i = 0; i < SEND_PV_COUNT; i++)
         {
             ///arrange
+			reset_callback_context_records();
 
             ///act
             int send_result = tlsio_id->concrete_io_send(p0[i] ? tlsio : NULL, p1[i],
@@ -892,6 +895,7 @@ BEGIN_TEST_SUITE(tlsio_openssl_compact_unittests)
 
             ///assert
             ASSERT_ARE_NOT_EQUAL_WITH_MSG(int, send_result, 0, fm[i]);
+			ASSERT_IO_SEND_CALLBACK(p2[i] != NULL, IO_SEND_ERROR);
 
             ///cleanup
         }
@@ -902,11 +906,13 @@ BEGIN_TEST_SUITE(tlsio_openssl_compact_unittests)
 	}
 
     /* Tests_SRS_TLSIO_30_065: [ If tlsio_openssl_compact_open has not been called or the opening process has not been completed, tlsio_openssl_compact_send shall log an error and return FAILURE. ]*/
-    TEST_FUNCTION(tlsio_openssl_compact__send_not_open__fails)
+	/* Tests_SRS_TLSIO_30_066: [ On failure, a non-NULL on_send_complete shall be called with callback_context and IO_SEND_ERROR. ]*/
+	TEST_FUNCTION(tlsio_openssl_compact__send_not_open__fails)
     {
         ///arrange
         const IO_INTERFACE_DESCRIPTION* tlsio_id = tlsio_get_interface_description();
         CONCRETE_IO_HANDLE tlsio = tlsio_id->concrete_io_create(&good_config);
+		reset_callback_context_records();
 
         ///act
         int send_result = tlsio_id->concrete_io_send(tlsio, SSL_send_buffer,
@@ -914,6 +920,7 @@ BEGIN_TEST_SUITE(tlsio_openssl_compact_unittests)
 
         ///assert
         ASSERT_ARE_NOT_EQUAL_WITH_MSG(int, send_result, 0, "Unexpected success in sending from wrong state");
+		ASSERT_IO_SEND_CALLBACK(true, IO_SEND_ERROR);
 
         ///cleanup
         tlsio_id->concrete_io_destroy(tlsio);

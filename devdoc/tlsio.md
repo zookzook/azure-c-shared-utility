@@ -392,11 +392,14 @@ int tlsio_send(CONCRETE_IO_HANDLE tlsio_handle, const void* buffer, size_t size,
 
 **SRS_TLSIO_30_062: [** If the `on_send_complete` is NULL, `tlsio_send` shall log the error and return _FAILURE_. **]**
 
-**SRS_TLSIO_30_063: [** The `tlsio_send` shall enqueue for transmission the `on_send_complete`, the `callback_context`, the `size`, and the contents of `buffer`. **]**
+**SRS_TLSIO_30_065: [** If the adapter state is not TLSIO_STATE_EXT_OPEN, `tlsio_send` shall log an error and return _FAILURE_. **]**
 
 **SRS_TLSIO_30_064: [** If the supplied message cannot be enqueued for transmission, `tlsio_send` shall return _FAILURE_. **]**
 
-**SRS_TLSIO_30_065: [** If `tlsio_open` has not been called or the opening process has not been completed, `tlsio_send` shall log an error and return _FAILURE_. **]**
+**SRS_TLSIO_30_066: [** On failure, a non-NULL `on_send_complete` shall be called with `callback_context` and IO_SEND_ERROR. **]**
+
+**SRS_TLSIO_30_063: [** On success, `tlsio_send` shall enqueue for transmission the `on_send_complete`, the `callback_context`, the `size`, and the contents of `buffer`. **]**
+
 
 ###   tlsio_dowork
 Implementation of `concrete_io_dowork`
@@ -413,9 +416,7 @@ The underlying OpenSSL `SSL_read` call does not return errors if the connection 
 
 These post-error behavior specifications take precedence over all other behavior specifications.
 
-**SRS_TLSIO_30_071: [** If the `tlsio` adapter has returned a failure from `tlsio_open` or if `on_io_open_complete` has been called with `IO_OPEN_ERROR` or `IO_OPEN_CANCELLED`, then `tlsio_dowork` shall do nothing. **]**
-
-**SRS_TLSIO_30_072: [** If `tlsio_dowork` ever calls `on_io_error`, then subsequent calls to `tlsio_dowork` shall do nothing. **]**
+**SRS_TLSIO_30_071: [** If the adapter is in TLSIO_STATE_EXT_ERROR then `tlsio_dowork` shall do nothing. **]**
 
 #### Behavior selection
 

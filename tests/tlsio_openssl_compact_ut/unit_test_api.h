@@ -6,6 +6,10 @@
 #ifndef TLSIO_DEBUG_API_H
 #define TLSIO_DEBUG_API_H
 
+#ifdef __cplusplus
+extern "C" {
+#endif /* __cplusplus */
+
 // The tlsio external state values are the states of the tlsio adapter
 // as seen by the caller on the basis of calls made and callbacks received.
 typedef enum
@@ -26,5 +30,9 @@ typedef enum
 // called in production code.
 int tlsio_verify_internal_state(const CONCRETE_IO_HANDLE tlsio_in,
 	TLSIO_STATE_EXT expected_state, size_t expected_message_queue_length);
+
+#ifdef __cplusplus
+}
+#endif /* __cplusplus */
 
 #endif // TLSIO_DEBUG_API_H

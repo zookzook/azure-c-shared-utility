@@ -17,14 +17,14 @@
 #include "azure_c_shared_utility/singlylinkedlist.h"
 #include "azure_c_shared_utility/crt_abstractions.h"
 
-typedef struct PENDING_SOCKET_IO_TAG
+typedef struct 
 {
     unsigned char* bytes;
     size_t size;
     size_t unsent_size;
     ON_SEND_COMPLETE on_send_complete;
     void* callback_context;
-} PENDING_SOCKET_IO;
+} PENDING_TRANSMISSION;
 
 /* Codes_SRS_TLSIO_30_003: [ Tlsio adapter implementations shall define and observe the internally defined  TLSIO_OPERATION_TIMEOUT_SECONDS  timeout value for opening, closing, and sending processes: ]*/
 // This value is considered an emergency limit rather than a useful tuning parameter,
@@ -110,8 +110,8 @@ static bool close_and_destroy_head_message(TLS_IO_INSTANCE* tls_io_instance, IO_
     LIST_ITEM_HANDLE head_pending_io = singlylinkedlist_get_head_item(tls_io_instance->pending_transmission_list);
     if (head_pending_io != NULL)
     {
-        PENDING_SOCKET_IO* head_message = (PENDING_SOCKET_IO*)singlylinkedlist_item_get_value(head_pending_io);
-        // on_send_complete is checked for NULL during PENDING_SOCKET_IO creation
+        PENDING_TRANSMISSION* head_message = (PENDING_TRANSMISSION*)singlylinkedlist_item_get_value(head_pending_io);
+        // on_send_complete is checked for NULL during PENDING_TRANSMISSION creation
 		/* Codes_SRS_TLSIO_30_095: [ If the send process fails before sending all of the bytes in an enqueued message, the tlsio_dowork shall call the message's on_send_complete along with its associated callback_context and IO_SEND_ERROR. ]*/
 		head_message->on_send_complete(head_message->callback_context, send_result);
 
@@ -456,20 +456,20 @@ int tlsio_openssl_close(CONCRETE_IO_HANDLE tls_io, ON_IO_CLOSE_COMPLETE on_io_cl
 int tlsio_openssl_send(CONCRETE_IO_HANDLE tls_io, const void* buffer, size_t size, ON_SEND_COMPLETE on_send_complete, void* callback_context)
 {
     int result;
-    TLS_IO_INSTANCE* tls_io_instance = (TLS_IO_INSTANCE*)tls_io;
-    if (tls_io_instance == NULL)
+	if (on_send_complete == NULL)
     {
-        /* Codes_SRS_TLSIO_30_060: [ If the tlsio_handle parameter is NULL, tlsio_openssl_compact_send shall log an error and return FAILURE. ]*/
-        result = __FAILURE__;
-        LogError(null_tlsio_message);
-    }
+		/* Codes_SRS_TLSIO_30_062: [ If the on_send_complete is NULL, tlsio_openssl_compact_send shall log the error and return FAILURE. ]*/
+		result = __FAILURE__;
+		LogError("NULL on_send_complete");
+	}
     else
     {
-        if (on_send_complete == NULL)
+		TLS_IO_INSTANCE* tls_io_instance = (TLS_IO_INSTANCE*)tls_io;
+		if (tls_io_instance == NULL)
         {
-            /* Codes_SRS_TLSIO_30_062: [ If the on_send_complete is NULL, tlsio_openssl_compact_send shall log the error and return FAILURE. ]*/
-            result = __FAILURE__;
-            LogError("NULL on_send_complete");
+			/* Codes_SRS_TLSIO_30_060: [ If the tlsio_handle parameter is NULL, tlsio_openssl_compact_send shall log an error and return FAILURE. ]*/
+			result = __FAILURE__;
+			LogError(null_tlsio_message);
         }
         else
         {
@@ -489,8 +489,8 @@ int tlsio_openssl_send(CONCRETE_IO_HANDLE tls_io, const void* buffer, size_t siz
                 }
                 else
                 {
-                    PENDING_SOCKET_IO* pending_socket_io = (PENDING_SOCKET_IO*)malloc(sizeof(PENDING_SOCKET_IO));
-                    if (pending_socket_io == NULL)
+                    PENDING_TRANSMISSION* pending_transmission = (PENDING_TRANSMISSION*)malloc(sizeof(PENDING_TRANSMISSION));
+                    if (pending_transmission == NULL)
                     {
                         /* Codes_SRS_TLSIO_30_064: [ If the supplied message cannot be enqueued for transmission, tlsio_openssl_compact_send shall return FAILURE. ]*/
                         result = __FAILURE__;
@@ -502,36 +502,36 @@ int tlsio_openssl_send(CONCRETE_IO_HANDLE tls_io, const void* buffer, size_t siz
                         // Accept messages of length zero, but don't allocate memory for them
                         if (size > 0)
                         {
-                            pending_socket_io->bytes = (unsigned char*)malloc(size);
+                            pending_transmission->bytes = (unsigned char*)malloc(size);
                         }
                         else
                         {
-                            pending_socket_io->bytes = NULL;
+                            pending_transmission->bytes = NULL;
                         }
 
-                        if (pending_socket_io->bytes == NULL && size > 0)
+                        if (pending_transmission->bytes == NULL && size > 0)
                         {
                             /* Codes_SRS_TLSIO_30_064: [ If the supplied message cannot be enqueued for transmission, tlsio_openssl_compact_send shall return FAILURE. ]*/
                             LogError(allocate_fail_message);
-                            free(pending_socket_io);
+                            free(pending_transmission);
                             result = __FAILURE__;
                         }
                         else
                         {
-                            pending_socket_io->size = size;
-                            pending_socket_io->unsent_size = size;
-                            pending_socket_io->on_send_complete = on_send_complete;
-                            pending_socket_io->callback_context = callback_context;
+                            pending_transmission->size = size;
+                            pending_transmission->unsent_size = size;
+                            pending_transmission->on_send_complete = on_send_complete;
+                            pending_transmission->callback_context = callback_context;
                             if (size > 0)
                             {
-                                (void)memcpy(pending_socket_io->bytes, buffer, size);
+                                (void)memcpy(pending_transmission->bytes, buffer, size);
                             }
-                            if (singlylinkedlist_add(tls_io_instance->pending_transmission_list, pending_socket_io) == NULL)
+                            if (singlylinkedlist_add(tls_io_instance->pending_transmission_list, pending_transmission) == NULL)
                             {
                                 /* Codes_SRS_TLSIO_30_064: [ If the supplied message cannot be enqueued for transmission, tlsio_openssl_compact_send shall return FAILURE. ]*/
                                 LogError("Unable to add socket to pending list.");
-                                free(pending_socket_io->bytes);
-                                free(pending_socket_io);
+                                free(pending_transmission->bytes);
+                                free(pending_transmission);
                                 result = __FAILURE__;
                             }
                             else
@@ -543,6 +543,11 @@ int tlsio_openssl_send(CONCRETE_IO_HANDLE tls_io, const void* buffer, size_t siz
                 }
             }
         }
+		if (result != 0)
+		{
+			/* Codes_SRS_TLSIO_30_066: [ On failure, a non-NULL on_send_complete shall be called with callback_context and IO_SEND_ERROR. ]*/
+			on_send_complete(callback_context, IO_SEND_ERROR);
+		}
     }
     return result;
 }
@@ -626,7 +631,7 @@ static void dowork_send(TLS_IO_INSTANCE* tls_io_instance)
     LIST_ITEM_HANDLE first_pending_io = singlylinkedlist_get_head_item(tls_io_instance->pending_transmission_list);
     if (first_pending_io != NULL)
     {
-        PENDING_SOCKET_IO* pending_message = (PENDING_SOCKET_IO*)singlylinkedlist_item_get_value(first_pending_io);
+        PENDING_TRANSMISSION* pending_message = (PENDING_TRANSMISSION*)singlylinkedlist_item_get_value(first_pending_io);
         // Initialize the send start time if necessary
         if (tls_io_instance->operation_timeout_end_time == 0)
         {
@@ -931,5 +936,5 @@ const IO_INTERFACE_DESCRIPTION* tlsio_get_interface_description(void)
 }
 
 #ifdef TLSIO_STATE_VERIFICATION_ENABLE
-#include "debug_api_impl.h"
+#include "unit_test_api_impl.h"
 #endif

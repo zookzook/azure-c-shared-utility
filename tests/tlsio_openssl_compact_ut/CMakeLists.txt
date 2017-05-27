@@ -24,8 +24,8 @@ ssl_errors.h
 test_defines.h
 gballoc_ut_impl_1.h
 gballoc_ut_impl_2.h
-debug_api.h
-debug_api_impl.h
+unit_test_api.h
+unit_test_api_impl.h
 )
 
 include_directories(.)
