@@ -133,6 +133,7 @@ static bool close_and_destroy_head_message(TLS_IO_INSTANCE* tls_io_instance, IO_
 	return result;
 }
 
+/* Codes_SRS_TLSIO_30_081: [ If the connection process takes longer than the internally defined TLSIO_OPERATION_TIMEOUT_SECONDS it shall log an error and enter TLSIO_STATE_EX_ERROR. ]*/
 static void check_for_open_timeout(TLS_IO_INSTANCE* tls_io_instance)
 {
 	time_t now = get_time(NULL);
@@ -744,6 +745,7 @@ static void dowork_poll_dns(TLS_IO_INSTANCE* tls_io_instance)
 	}
 	else
 	{
+		/* Codes_SRS_TLSIO_30_081: [ If the connection process takes longer than the internally defined TLSIO_OPERATION_TIMEOUT_SECONDS it shall log an error and enter TLSIO_STATE_EX_ERROR. ]*/
 		check_for_open_timeout(tls_io_instance);
 	}
 }
@@ -777,6 +779,7 @@ static void dowork_poll_socket(TLS_IO_INSTANCE* tls_io_instance)
 		}
 		else
 		{
+			/* Codes_SRS_TLSIO_30_081: [ If the connection process takes longer than the internally defined  TLSIO_OPERATION_TIMEOUT_SECONDS , tlsio_dowork shall log an error and enter TLSIO_STATE_EX_ERROR. ]*/
 			check_for_open_timeout(tls_io_instance);
 		}
 	}
@@ -808,6 +811,7 @@ static void dowork_poll_open_ssl(TLS_IO_INSTANCE* tls_io_instance)
 	// https://www.openssl.org/docs/man1.0.2/ssl/SSL_connect.html
 	if (connect_result == 1 || connect_result == 0)
 	{
+		/* Codes_SRS_TLSIO_30_080: [ The tlsio_dowork shall establish a TLS connection using the hostName and port provided during tlsio_open. ]*/
 		// Connect succeeded
 		tls_io_instance->tlsio_state = TLSIO_STATE_OPEN;
 		tls_io_instance->on_open_complete(tls_io_instance->on_open_complete_context, IO_OPEN_OK);
@@ -823,6 +827,7 @@ static void dowork_poll_open_ssl(TLS_IO_INSTANCE* tls_io_instance)
 		}
 		else
 		{
+			/* Codes_SRS_TLSIO_30_081: [ If the connection process takes longer than the internally defined TLSIO_OPERATION_TIMEOUT_SECONDS it shall log an error and enter TLSIO_STATE_EX_ERROR. ]*/
 			check_for_open_timeout(tls_io_instance);
 		}
 	}
@@ -833,7 +838,7 @@ void tlsio_openssl_dowork(CONCRETE_IO_HANDLE tls_io)
 	TLS_IO_INSTANCE* tls_io_instance = (TLS_IO_INSTANCE*)tls_io;
 	if (tls_io_instance == NULL)
 	{
-		/* Codes_SRS_TLSIO_30_070: [ If the tlsio_handle parameter is NULL, tlsio_openssl_compact_dowork shall do nothing except log an error. ]*/
+		/* Codes_SRS_TLSIO_30_070: [ If the tlsio_handle parameter is NULL, tlsio_dowork shall do nothing except log an error. ]*/
 		LogError(null_tlsio_message);
 	}
 	else
@@ -842,7 +847,7 @@ void tlsio_openssl_dowork(CONCRETE_IO_HANDLE tls_io)
 		switch (tls_io_instance->tlsio_state)
 		{
 		case TLSIO_STATE_CLOSED:
-			/* Codes_SRS_TLSIO_30_075: [ If tlsio_openssl_compact_dowork is called before tlsio_openssl_compact_open, tlsio_openssl_compact_dowork shall do nothing. ]*/
+			/* Codes_SRS_TLSIO_30_075: [ If the adapter is in TLSIO_STATE_EXT_CLOSED then  tlsio_dowork  shall do nothing. ]*/
 			// Waiting to be opened, nothing to do
 			break;
 		case TLSIO_STATE_OPENING_WAITING_DNS:
@@ -862,7 +867,7 @@ void tlsio_openssl_dowork(CONCRETE_IO_HANDLE tls_io)
 			dowork_send(tls_io_instance);
 			break;
 		case TLSIO_STATE_ERROR:
-			/* Codes_SRS_TLSIO_30_071: [ If the adapter is in TLSIO_STATE_EXT_ERROR then  tlsio_dowork  shall do nothing. ]*/
+			/* Codes_SRS_TLSIO_30_071: [ If the adapter is in TLSIO_STATE_EXT_ERROR then tlsio_dowork shall do nothing. ]*/
 			// There's nothing valid to do here but wait to be retried
 			break;
 		default:

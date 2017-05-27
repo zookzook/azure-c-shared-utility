@@ -270,19 +270,19 @@ Throughout this document, state transitions only occur as explicitly specified. 
 Requirements in this document use the phrase "shall enter TLSIO_STATE_XXXX" to specify behavior. Here are the definitions of the state transition phrases:
 
 ##### "enter TLSIO_STATE_EXT_ERROR"
-**SRS_TLSIO_30_005: [** When "enter TLSIO_STATE_EXT_ERROR" is specified the adapter shall call the `on_io_error` function and pass the `on_io_error_context` that were supplied in `tlsio_open`. **]**
+**SRS_TLSIO_30_005: [** When "enter TLSIO_STATE_EXT_ERROR" is specified the adapter shall call the `on_io_error` function and pass the `on_io_error_context` that was supplied in `tlsio_open`. **]**
 
 ##### "enter TLSIO_STATE_EXT_CLOSING"
 **SRS_TLSIO_30_009: [** The phrase "enter TLSIO_STATE_EXT_CLOSING" means the adapter shall iterate through any unsent messages in the queue and shall delete each message after calling its `on_send_complete` with the associated `callback_context` and `IO_SEND_CANCELLED`. **]**
 
 ##### "enter TLSIO_STATE_EXT_CLOSED"
-**SRS_TLSIO_30_006: [** The phrase "enter TLSIO_STATE_EXT_CLOSED" means the adapter shall forcibly close any existing connections then call the `on_io_close_complete` function and pass the `on_io_close_complete_context` that were supplied in `tlsio_close`. **]**
+**SRS_TLSIO_30_006: [** The phrase "enter TLSIO_STATE_EXT_CLOSED" means the adapter shall forcibly close any existing connections then call the `on_io_close_complete` function and pass the `on_io_close_complete_context` that was supplied in `tlsio_close`. **]**
 
 ##### "enter TLSIO_STATE_EXT_OPENING"
 The phrase "enter TLSIO_STATE_EXT_OPENING" means the adapter will continute the process of opening the TSL connection to the host on the next `tlsio_dowork` call but no externally visible action is being specified.
 
 ##### "enter TLSIO_STATE_EXT_OPEN"
-**SRS_TLSIO_30_007: [** The phrase "enter TLSIO_STATE_EXT_OPEN" means the adapter shall call the `on_io_open_complete` function and pass IO_OPEN_OK and the `on_io_open_complete_context` that were supplied in `tlsio_open`. **]**
+**SRS_TLSIO_30_007: [** The phrase "enter TLSIO_STATE_EXT_OPEN" means the adapter shall call the `on_io_open_complete` function and pass IO_OPEN_OK and the `on_io_open_complete_context` that was supplied in `tlsio_open`. **]**
 
 
 
@@ -410,39 +410,32 @@ Implementation of `concrete_io_dowork`
 ```c
 void tlsio_dowork(CONCRETE_IO_HANDLE tlsio_handle);
 ```
-The `tlsio_dowork` call executes async jobs for the tlsio. This includes connection completion, sending to the SSL connection, and checking the SSL connection for available bytes to read.
-
-The underlying OpenSSL `SSL_read` call does not return errors if the connection has been lost, so the tlsio will not know if the connection has been lost until it attempts a write operation.
+The `tlsio_dowork` call executes async jobs for the tlsio. This includes connection completion, sending to the TLS connection, and checking the TLS connection for available bytes to read.
 
 **SRS_TLSIO_30_070: [** If the `tlsio_handle` parameter is NULL, `tlsio_dowork` shall do nothing except log an error. **]**
 
-#### Post-error behavior
-
-These post-error behavior specifications take precedence over all other behavior specifications.
-
-**SRS_TLSIO_30_071: [** If the adapter is in TLSIO_STATE_EXT_ERROR then `tlsio_dowork` shall do nothing. **]**
 
 #### Behavior selection
 
-**SRS_TLSIO_30_075: [** If `tlsio_dowork` is called before `tlsio_open`, `tlsio_dowork` shall do nothing. **]**
+**SRS_TLSIO_30_071: [** If the adapter is in TLSIO_STATE_EXT_ERROR then `tlsio_dowork` shall do nothing. **]**
 
-**SRS_TLSIO_30_076: [** If `tlsio_dowork` is called after `tlsio_close`, `tlsio_dowork` shall do nothing. **]**
+**SRS_TLSIO_30_075: [** If the adapter is in TLSIO_STATE_EXT_CLOSED then `tlsio_dowork` shall do nothing. **]**
 
-**SRS_TLSIO_30_077: [** If  `tlsio_dowork` called after `tlsio_open` but before the connection process completes, `tlsio_dowork` shall perform the [Connection completion behaviors](#connection-completion-behaviors) but not the [Data transmission behaviors](#data-transmission-behaviors) or the [Data reception behaviors](#data-reception-behaviors). **]**
+**SRS_TLSIO_30_077: [** If `tlsio_dowork` is called during TLSIO_STATE_EXT_OPENING, `tlsio_dowork` shall perform the [TLSIO_STATE_EXT_OPENING behaviors](#TLSIO_STATE_EXT_OPENING-behaviors) but not the [Data transmission behaviors](#data-transmission-behaviors) or the [Data reception behaviors](#data-reception-behaviors). **]**
 
-**SRS_TLSIO_30_078: [** If `tlsio_dowork` is called after the connection process completes successfully, `tlsio_dowork` shall perform the [Data transmission behaviors](#data-transmission-behaviors) and then the [Data reception behaviors](#data-reception-behaviors) but not the [Connection completion behaviors](#connection-completion-behaviors). **]**
+**SRS_TLSIO_30_078: [** If `tlsio_dowork` is called during TLSIO_STATE_EXT_OPENING, `tlsio_dowork` shall perform the [Data transmission behaviors](#data-transmission-behaviors) and then the [Data reception behaviors](#data-reception-behaviors) but not the [TLSIO_STATE_EXT_OPENING behaviors](#TLSIO_STATE_EXT_OPENING-behaviors). **]**
 
-#### Connection completion behaviors
+#### TLSIO_STATE_EXT_OPENING behaviors
 
-Connection completion may require multiple calls to `tlsio_dowork`. The number of calls required is not specified.
+Transitioning from TLSIO_STATE_EXT_OPENING to TLSIO_STATE_EXT_OPEN may require multiple calls to `tlsio_dowork`. The number of calls required is not specified.
 
-**SRS_TLSIO_30_080: [** The `tlsio_dowork` shall establish an OpenSSL connection using the `hostName` and `port` provided during `tlsio_open`. **]**
+**SRS_TLSIO_30_080: [** The `tlsio_dowork` shall establish a TLS connection using the `hostName` and `port` provided during `tlsio_open`. **]**
 
-**SRS_TLSIO_30_081: [** If the connection process takes longer than the internally defined `TLSIO_OPERATION_TIMEOUT_SECONDS` it shall log an error and call `on_io_open_complete` with the `on_io_open_complete_context` parameter provided in `tlsio_open` and `IO_OPEN_ERROR`. **]**
+**SRS_TLSIO_30_081: [** If the connection process takes longer than the internally defined `TLSIO_OPERATION_TIMEOUT_SECONDS`, `tlsio_dowork`  shall log an error and  [enter TLSIO_STATE_EX_ERROR](#enter-TLSIO_STATE_EXT_ERROR "Call the `on_io_error` function and pass the `on_io_error_context` that was supplied in `tlsio_open`."). **]**
 
 **SRS_TLSIO_30_082: [** If the connection process fails for any reason, `tlsio_dowork` shall log an error and call `on_io_open_complete` with the `on_io_open_complete_context` parameter provided in `tlsio_open` and `IO_OPEN_ERROR`. **]**
 
-**SRS_TLSIO_30_083: [** If `tlsio_dowork` successfully opens the ssl connection it shall call `on_io_open_complete` with the `on_io_open_complete_context` parameter provided in `tlsio_open` and `IO_OPEN_OK`. **]**
+**SRS_TLSIO_30_083: [** If `tlsio_dowork` successfully opens the TLS connection it shall call `on_io_open_complete` with the `on_io_open_complete_context` parameter provided in `tlsio_open` and `IO_OPEN_OK`. **]**
 
 #### Data transmission behaviors
 
