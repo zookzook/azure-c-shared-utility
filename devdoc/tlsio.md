@@ -251,6 +251,8 @@ but shall not alter its internal state. Usage errors include:
 
 **Failed `tlsio_send` calls policy**: If the `tlsio_send` operation fails, the tlsio adapter shall log an error, return failure, and call the message's callback appropriately, but the adapter shall not change its internal state.<br/>**Reason for failed `tlsio_send` policy**: Tlsio adapters conforming to this spec enqueue incoming messages rather than sending them directly, so the only possible errors are usage errors and out-of-memory errors. Neither of these situations calls for the tlsio adapter to change its state, so it won't.
 
+**Zero-length messages policy**: The `tlsio_send` call will not accept zero-length messages.<br/>**Reason for zero-length messages policy**: This behavior matches that of existing tlsio adapters.
+
 **Mandatory callbacks policy**: All of the callback functions in the tlsio adapter API are mandatory.<br/>
 **Reasons for mandatory callbacks policy**: 
 * Tlsio adapters are designed for asynchronous operation, and correct usage of the adapter is difficult or impossible without using all of the callbacks.
@@ -352,13 +354,13 @@ int tlsio_open(
 
 **SRS_TLSIO_30_037: [** If the adapter is in any state other than TLSIO_STATE_EXT_CLOSED when `tlsio_open` is called, it shall log an error, and return _FAILURE_. **]**
 
-**SRS_TLSIO_30_034: [** On success, `tlsio_open` shall store the provided `on_bytes_received`,  `on_bytes_received_context`, `on_io_error`, `on_io_error_context`, `on_io_open_complete`,  and `on_io_open_complete_context` parameters for later use as specified and tested per other line entries in this document. **]**
-
-**SRS_TLSIO_30_035: [** On `tlsio_open` success the adapter shall [enter TLSIO_STATE_EX_OPENING](#enter-TLSIO_STATE_EXT_OPENING) and return 0. **]**
-
 **SRS_TLSIO_30_038: [** If `tlsio_open` fails to  [enter TLSIO_STATE_EX_OPENING](#enter-TLSIO_STATE_EXT_OPENING) it shall return _FAILURE_. **]**
 
-**SRS_TLSIO_30_039: [** If the `tlsio_open` returns _FAILURE_  it shall call `on_io_open_complete` with the provided `on_io_open_complete_context` and IO_OPEN_ERROR. **]**
+**SRS_TLSIO_30_039: [** On failure, `tlsio_open` shall call a non-NULL `on_io_open_complete` with the provided `on_io_open_complete_context` and IO_OPEN_ERROR. **]**
+
+**SRS_TLSIO_30_034: [** On success, `tlsio_open` shall store the provided `on_bytes_received`,  `on_bytes_received_context`, `on_io_error`, `on_io_error_context`, `on_io_open_complete`,  and `on_io_open_complete_context` parameters for later use as specified and tested per other line entries in this document. **]**
+
+**SRS_TLSIO_30_035: [** On success, `tlsio_open` shall cause the adapter to [enter TLSIO_STATE_EX_OPENING](#enter-TLSIO_STATE_EXT_OPENING) and return 0. **]**
 
 
 ###   tlsio_close
@@ -392,13 +394,15 @@ int tlsio_send(CONCRETE_IO_HANDLE tlsio_handle, const void* buffer, size_t size,
 
 **SRS_TLSIO_30_062: [** If the `on_send_complete` is NULL, `tlsio_send` shall log the error and return _FAILURE_. **]**
 
+**SRS_TLSIO_30_067: [** If the `size` is 0, `tlsio_send` shall log the error and return _FAILURE_. **]**
+
 **SRS_TLSIO_30_065: [** If the adapter state is not TLSIO_STATE_EXT_OPEN, `tlsio_send` shall log an error and return _FAILURE_. **]**
 
 **SRS_TLSIO_30_064: [** If the supplied message cannot be enqueued for transmission, `tlsio_send` shall return _FAILURE_. **]**
 
 **SRS_TLSIO_30_066: [** On failure, a non-NULL `on_send_complete` shall be called with `callback_context` and IO_SEND_ERROR. **]**
 
-**SRS_TLSIO_30_063: [** On success, `tlsio_send` shall enqueue for transmission the `on_send_complete`, the `callback_context`, the `size`, and the contents of `buffer`. **]**
+**SRS_TLSIO_30_063: [** On success, `tlsio_send` shall enqueue for transmission the `on_send_complete`, the `callback_context`, the `size`, and the contents of `buffer` and then return 0. **]**
 
 
 ###   tlsio_dowork

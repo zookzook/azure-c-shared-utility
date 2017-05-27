@@ -3,8 +3,8 @@
 
 // This file is made an integral part of a tlsio adapter implementation with a #include. It
 // is broken out for readability. 
-#ifndef TLSIO_DEBUG_API_H
-#define TLSIO_DEBUG_API_H
+#ifndef TLSIO_UNIT_TEST_API_H
+#define TLSIO_UNIT_TEST_API_H
 
 #ifdef __cplusplus
 extern "C" {
@@ -35,4 +35,4 @@ int tlsio_verify_internal_state(const CONCRETE_IO_HANDLE tlsio_in,
 }
 #endif /* __cplusplus */
 
-#endif // TLSIO_DEBUG_API_H
+#endif // TLSIO_UNIT_TEST_API_H

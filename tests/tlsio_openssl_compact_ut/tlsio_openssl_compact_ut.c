@@ -729,43 +729,6 @@ BEGIN_TEST_SUITE(tlsio_openssl_compact_unittests)
 		assert_gballoc_checks();
 	}
 
-    /* Tests_SRS_TLSIO_30_090: [ If an enqueued message size is 0, the tlsio_openssl_compact_dowork shall just call the on_send_complete with the callback_context and IO_SEND_OK. ]*/
-    TEST_FUNCTION(tlsio_openssl_compact__dowork_send_empty_message__succeeds)
-    {
-        ///arrange
-        const IO_INTERFACE_DESCRIPTION* tlsio_id = tlsio_get_interface_description();
-        CONCRETE_IO_HANDLE tlsio = tlsio_id->concrete_io_create(&good_config);
-        open_helper(tlsio_id, tlsio);
-
-        // Send an empty message (this is allowed)
-        int send_result = tlsio_id->concrete_io_send(tlsio, SSL_send_buffer,
-            0, on_io_send_complete, IO_SEND_COMPLETE_CONTEXT);
-        ASSERT_ARE_EQUAL(int, send_result, 0);
-
-        reset_callback_context_records();
-        umock_c_reset_all_calls();
-
-        STRICT_EXPECTED_CALL(SSL_read(SSL_Good_Ptr, IGNORED_PTR_ARG, IGNORED_NUM_ARG)).SetReturn(0);
-        STRICT_EXPECTED_CALL(get_time(NULL));
-        // Delete without doing a send
-        STRICT_EXPECTED_CALL(gballoc_free(IGNORED_NUM_ARG));
-        STRICT_EXPECTED_CALL(gballoc_free(IGNORED_NUM_ARG));
-        STRICT_EXPECTED_CALL(gballoc_free(IGNORED_NUM_ARG));
-
-        ///act
-        tlsio_id->concrete_io_dowork(tlsio);
-        //
-
-        ///assert
-        ASSERT_IO_SEND_CALLBACK(true, IO_SEND_OK);
-        ASSERT_ARE_EQUAL(char_ptr, umock_c_get_expected_calls(), umock_c_get_actual_calls());
-
-        ///cleanup
-        tlsio_id->concrete_io_close(tlsio, on_io_close_complete, NULL);
-        tlsio_id->concrete_io_destroy(tlsio);
-		assert_gballoc_checks();
-	}
-
     /* Tests_SRS_TLSIO_30_096: [ If there are no enqueued messages available, tlsio_openssl_compact_dowork shall do nothing. ]*/
     TEST_FUNCTION(tlsio_openssl_compact__dowork_send_empty_queue__succeeds)
     {
@@ -865,6 +828,7 @@ BEGIN_TEST_SUITE(tlsio_openssl_compact_unittests)
     /* Tests_SRS_TLSIO_30_060: [ If the tlsio_handle parameter is NULL, tlsio_openssl_compact_send shall log an error and return FAILURE. ]*/
     /* Tests_SRS_TLSIO_30_061: [ If the buffer is NULL, tlsio_openssl_compact_send shall log the error and return FAILURE. ]*/
 	/* Tests_SRS_TLSIO_30_062: [ If the on_send_complete is NULL, tlsio_openssl_compact_send shall log the error and return FAILURE. ]*/
+	/* Tests_SRS_TLSIO_30_067: [ If the  size  is 0,  tlsio_send  shall log the error and return FAILURE. ]*/
 	/* Tests_SRS_TLSIO_30_066: [ On failure, a non-NULL on_send_complete shall be called with callback_context and IO_SEND_ERROR. ]*/
 	TEST_FUNCTION(tlsio_openssl_compact__send_parameter_validation__fails)
     {
@@ -875,13 +839,15 @@ BEGIN_TEST_SUITE(tlsio_openssl_compact_unittests)
         // Parameters arrays
         bool p0[SEND_PV_COUNT];
         const void* p1[SEND_PV_COUNT];
-        ON_SEND_COMPLETE p2[SEND_PV_COUNT];
+		size_t p2[SEND_PV_COUNT];
+        ON_SEND_COMPLETE p3[SEND_PV_COUNT];
         const char* fm[SEND_PV_COUNT];
 
         int k = 0;
-        p0[k] = false; p1[k] = SSL_send_buffer; p2[k] = on_io_send_complete; fm[k] = "Unexpected send success when tlsio_handle is NULL"; k++;
-        p0[k] = true; p1[k] = NULL; /*       */ p2[k] = on_io_send_complete; fm[k] = "Unexpected send success when send buffer is NULL"; k++;
-        p0[k] = true; p1[k] = SSL_send_buffer; p2[k] = NULL; /*           */ fm[k] = "Unexpected send success when on_send_complete is NULL"; k++;
+		p0[k] = false; p1[k] = SSL_send_buffer; p2[k] = SSL_send_message_size; p3[k] = on_io_send_complete; fm[k] = "Unexpected send success when tlsio_handle is NULL"; k++;
+        p0[k] = true; p1[k] = NULL; /*       */ p2[k] = SSL_send_message_size; p3[k] = on_io_send_complete; fm[k] = "Unexpected send success when send buffer is NULL"; k++;
+		p0[k] = true; p1[k] = SSL_send_buffer; p2[k] = 0; /*                */ p3[k] = on_io_send_complete; fm[k] = "Unexpected send success when size is 0"; k++;
+		p0[k] = true; p1[k] = SSL_send_buffer; p2[k] = SSL_send_message_size; p3[k] = NULL; /*           */ fm[k] = "Unexpected send success when on_send_complete is NULL"; k++;
 
         // Cycle through each failing combo of parameters
         for (int i = 0; i < SEND_PV_COUNT; i++)
@@ -890,12 +856,11 @@ BEGIN_TEST_SUITE(tlsio_openssl_compact_unittests)
 			reset_callback_context_records();
 
             ///act
-            int send_result = tlsio_id->concrete_io_send(p0[i] ? tlsio : NULL, p1[i],
-                SSL_send_message_size, p2[i], IO_SEND_COMPLETE_CONTEXT);
+            int send_result = tlsio_id->concrete_io_send(p0[i] ? tlsio : NULL, p1[i], p2[i], p3[i], IO_SEND_COMPLETE_CONTEXT);
 
             ///assert
             ASSERT_ARE_NOT_EQUAL_WITH_MSG(int, send_result, 0, fm[i]);
-			ASSERT_IO_SEND_CALLBACK(p2[i] != NULL, IO_SEND_ERROR);
+			ASSERT_IO_SEND_CALLBACK(p3[i] != NULL, IO_SEND_ERROR);
 
             ///cleanup
         }

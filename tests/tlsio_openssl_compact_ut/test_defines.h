@@ -5,7 +5,7 @@
 
 #define SETOPTION_PV_COUNT 3
 #define OPEN_PV_COUNT 4
-#define SEND_PV_COUNT 3
+#define SEND_PV_COUNT 4
 #define CLOSE_PV_COUNT 2
 
 static TLSIO_CONFIG good_config = { SSL_good_host_name, SSL_good_port_number, NULL, NULL };
