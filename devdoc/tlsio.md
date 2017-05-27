@@ -431,11 +431,11 @@ Transitioning from TLSIO_STATE_EXT_OPENING to TLSIO_STATE_EXT_OPEN may require m
 
 **SRS_TLSIO_30_080: [** The `tlsio_dowork` shall establish a TLS connection using the `hostName` and `port` provided during `tlsio_open`. **]**
 
-**SRS_TLSIO_30_081: [** If the connection process takes longer than the internally defined `TLSIO_OPERATION_TIMEOUT_SECONDS`, `tlsio_dowork`  shall log an error and  [enter TLSIO_STATE_EX_ERROR](#enter-TLSIO_STATE_EXT_ERROR "Call the `on_io_error` function and pass the `on_io_error_context` that was supplied in `tlsio_open`."). **]**
+**SRS_TLSIO_30_081: [** If the connection process takes longer than the internally defined `TLSIO_OPERATION_TIMEOUT_SECONDS`, `tlsio_dowork`  shall log an error, call `on_io_open_complete` with the `on_io_open_complete_context` parameter provided in `tlsio_open` and `IO_OPEN_ERROR`, and  [enter TLSIO_STATE_EX_ERROR](#enter-TLSIO_STATE_EXT_ERROR "Call the `on_io_error` function and pass the `on_io_error_context` that was supplied in `tlsio_open`."). **]**
 
-**SRS_TLSIO_30_082: [** If the connection process fails for any reason, `tlsio_dowork` shall log an error and call `on_io_open_complete` with the `on_io_open_complete_context` parameter provided in `tlsio_open` and `IO_OPEN_ERROR`. **]**
+**SRS_TLSIO_30_082: [** If the connection process fails for any reason, `tlsio_dowork`  shall log an error, call `on_io_open_complete` with the `on_io_open_complete_context` parameter provided in `tlsio_open` and `IO_OPEN_ERROR`, and [enter TLSIO_STATE_EX_ERROR](#enter-TLSIO_STATE_EXT_ERROR "Call the `on_io_error` function and pass the `on_io_error_context` that was supplied in `tlsio_open`."). **]**
 
-**SRS_TLSIO_30_083: [** If `tlsio_dowork` successfully opens the TLS connection it shall call `on_io_open_complete` with the `on_io_open_complete_context` parameter provided in `tlsio_open` and `IO_OPEN_OK`. **]**
+**SRS_TLSIO_30_083: [** If `tlsio_dowork` successfully opens the TLS connection it shall [enter TLSIO_STATE_EX_OPEN](#enter-TLSIO_STATE_EXT_OPEN "Call the `on_io_open_complete` function and pass IO_OPEN_OK and the `on_io_open_complete_context` that was supplied in `tlsio_open`."). **]**
 
 #### Data transmission behaviors
 

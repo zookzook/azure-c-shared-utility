@@ -133,7 +133,7 @@ static bool close_and_destroy_head_message(TLS_IO_INSTANCE* tls_io_instance, IO_
 	return result;
 }
 
-/* Codes_SRS_TLSIO_30_081: [ If the connection process takes longer than the internally defined TLSIO_OPERATION_TIMEOUT_SECONDS it shall log an error and enter TLSIO_STATE_EX_ERROR. ]*/
+/* Codes_SRS_TLSIO_30_081: [ If the connection process takes longer than the internally defined TLSIO_OPERATION_TIMEOUT_SECONDS, tlsio_dowork shall log an error, call on_io_open_complete with the on_io_open_complete_context parameter provided in tlsio_open and IO_OPEN_ERROR, and enter TLSIO_STATE_EX_ERROR. ]*/
 static void check_for_open_timeout(TLS_IO_INSTANCE* tls_io_instance)
 {
 	time_t now = get_time(NULL);
@@ -603,7 +603,7 @@ static int create_ssl(TLS_IO_INSTANCE* tls_io_instance)
 		tls_io_instance->ssl_context = SSL_CTX_new(TLSv1_2_client_method());
 		if (tls_io_instance->ssl_context == NULL)
 		{
-			/* Codes_SRS_TLSIO_30_082: [ If the connection process fails for any reason, tlsio_openssl_compact_dowork shall log an error and call on_io_open_complete with the on_io_open_complete_context parameter provided in tlsio_openssl_compact_open and IO_OPEN_ERROR. ]*/
+			/* Codes_SRS_TLSIO_30_082: [ If the connection process fails for any reason, tlsio_dowork shall log an error, call on_io_open_complete with the on_io_open_complete_context parameter provided in tlsio_open and IO_OPEN_ERROR, and enter TLSIO_STATE_EX_ERROR. ]*/
 			result = __FAILURE__;
 			LogError("create new SSL CTX failed");
 		}
@@ -612,7 +612,7 @@ static int create_ssl(TLS_IO_INSTANCE* tls_io_instance)
 			tls_io_instance->ssl = SSL_new(tls_io_instance->ssl_context);
 			if (tls_io_instance->ssl == NULL)
 			{
-				/* Codes_SRS_TLSIO_30_082: [ If the connection process fails for any reason, tlsio_openssl_compact_dowork shall log an error and call on_io_open_complete with the on_io_open_complete_context parameter provided in tlsio_openssl_compact_open and IO_OPEN_ERROR. ]*/
+				/* Codes_SRS_TLSIO_30_082: [ If the connection process fails for any reason, tlsio_dowork shall log an error, call on_io_open_complete with the on_io_open_complete_context parameter provided in tlsio_open and IO_OPEN_ERROR, and enter TLSIO_STATE_EX_ERROR. ]*/
 				result = __FAILURE__;
 				LogError("SSL_new failed");
 			}
@@ -622,7 +622,7 @@ static int create_ssl(TLS_IO_INSTANCE* tls_io_instance)
 				ret = SSL_set_fd(tls_io_instance->ssl, tls_io_instance->sock);
 				if (ret != 1)
 				{
-					/* Codes_SRS_TLSIO_30_082: [ If the connection process fails for any reason, tlsio_openssl_compact_dowork shall log an error and call on_io_open_complete with the on_io_open_complete_context parameter provided in tlsio_openssl_compact_open and IO_OPEN_ERROR. ]*/
+					/* Codes_SRS_TLSIO_30_082: [ If the connection process fails for any reason, tlsio_dowork shall log an error, call on_io_open_complete with the on_io_open_complete_context parameter provided in tlsio_open and IO_OPEN_ERROR, and enter TLSIO_STATE_EX_ERROR. ]*/
 					result = __FAILURE__;
 					LogError("SSL_set_fd failed");
 				}
@@ -720,7 +720,7 @@ static void dowork_poll_dns(TLS_IO_INSTANCE* tls_io_instance)
 		if (host_ipV4_address == 0)
 		{
 			// Transition to TSLIO_STATE_ERROR
-			/* Codes_SRS_TLSIO_30_082: [ If the connection process fails for any reason, tlsio_openssl_compact_dowork shall log an error and call on_io_open_complete with the on_io_open_complete_context parameter provided in tlsio_openssl_compact_open and IO_OPEN_ERROR. ]*/
+			/* Codes_SRS_TLSIO_30_082: [ If the connection process fails for any reason, tlsio_dowork shall log an error, call on_io_open_complete with the on_io_open_complete_context parameter provided in tlsio_open and IO_OPEN_ERROR, and enter TLSIO_STATE_EX_ERROR. ]*/
 			// The DNS failure has already been logged
 			enter_open_error_state(tls_io_instance);
 		}
@@ -730,7 +730,7 @@ static void dowork_poll_dns(TLS_IO_INSTANCE* tls_io_instance)
 			if (sock < 0)
 			{
 				// This is a communication interruption rather than a program bug
-				/* Codes_SRS_TLSIO_30_082: [ If the connection process fails for any reason, tlsio_openssl_compact_dowork shall log an error and call on_io_open_complete with the on_io_open_complete_context parameter provided in tlsio_openssl_compact_open and IO_OPEN_ERROR. ]*/
+				/* Codes_SRS_TLSIO_30_082: [ If the connection process fails for any reason, tlsio_dowork shall log an error, call on_io_open_complete with the on_io_open_complete_context parameter provided in tlsio_open and IO_OPEN_ERROR, and enter TLSIO_STATE_EX_ERROR. ]*/
 				LogInfo("Could not open the socket");
 				enter_open_error_state(tls_io_instance);
 			}
@@ -745,7 +745,7 @@ static void dowork_poll_dns(TLS_IO_INSTANCE* tls_io_instance)
 	}
 	else
 	{
-		/* Codes_SRS_TLSIO_30_081: [ If the connection process takes longer than the internally defined TLSIO_OPERATION_TIMEOUT_SECONDS it shall log an error and enter TLSIO_STATE_EX_ERROR. ]*/
+		/* Codes_SRS_TLSIO_30_081: [ If the connection process takes longer than the internally defined TLSIO_OPERATION_TIMEOUT_SECONDS, tlsio_dowork shall log an error, call on_io_open_complete with the on_io_open_complete_context parameter provided in tlsio_open and IO_OPEN_ERROR, and enter TLSIO_STATE_EX_ERROR. ]*/
 		check_for_open_timeout(tls_io_instance);
 	}
 }
@@ -779,7 +779,7 @@ static void dowork_poll_socket(TLS_IO_INSTANCE* tls_io_instance)
 		}
 		else
 		{
-			/* Codes_SRS_TLSIO_30_081: [ If the connection process takes longer than the internally defined  TLSIO_OPERATION_TIMEOUT_SECONDS , tlsio_dowork shall log an error and enter TLSIO_STATE_EX_ERROR. ]*/
+			/* Codes_SRS_TLSIO_30_081: [ If the connection process takes longer than the internally defined TLSIO_OPERATION_TIMEOUT_SECONDS, tlsio_dowork shall log an error, call on_io_open_complete with the on_io_open_complete_context parameter provided in tlsio_open and IO_OPEN_ERROR, and enter TLSIO_STATE_EX_ERROR. ]*/
 			check_for_open_timeout(tls_io_instance);
 		}
 	}
@@ -814,6 +814,8 @@ static void dowork_poll_open_ssl(TLS_IO_INSTANCE* tls_io_instance)
 		/* Codes_SRS_TLSIO_30_080: [ The tlsio_dowork shall establish a TLS connection using the hostName and port provided during tlsio_open. ]*/
 		// Connect succeeded
 		tls_io_instance->tlsio_state = TLSIO_STATE_OPEN;
+		/* Codes_SRS_TLSIO_30_007: [ The phrase "enter TLSIO_STATE_EXT_OPEN" means the adapter shall call the on_io_open_complete function and pass IO_OPEN_OK and the on_io_open_complete_context that was supplied in tlsio_open . ]*/
+		/* Codes_SRS_TLSIO_30_083: [ If tlsio_dowork successfully opens the TLS connection it shall enter TLSIO_STATE_EX_OPEN. ]*/
 		tls_io_instance->on_open_complete(tls_io_instance->on_open_complete_context, IO_OPEN_OK);
 	}
 	else
@@ -821,13 +823,13 @@ static void dowork_poll_open_ssl(TLS_IO_INSTANCE* tls_io_instance)
 		int hard_error = is_hard_ssl_error(tls_io_instance->ssl, connect_result);
 		if (hard_error != 0)
 		{
-			/* Codes_SRS_TLSIO_30_082: [ If the connection process fails for any reason, tlsio_openssl_compact_dowork shall log an error and call on_io_open_complete with the on_io_open_complete_context parameter provided in tlsio_openssl_compact_open and IO_OPEN_ERROR. ]*/
+			/* Codes_SRS_TLSIO_30_082: [ If the connection process fails for any reason, tlsio_dowork shall log an error, call on_io_open_complete with the on_io_open_complete_context parameter provided in tlsio_open and IO_OPEN_ERROR, and enter TLSIO_STATE_EX_ERROR. ]*/
 			LogInfo("Hard error from SSL_connect: %d", hard_error);
 			enter_open_error_state(tls_io_instance);
 		}
 		else
 		{
-			/* Codes_SRS_TLSIO_30_081: [ If the connection process takes longer than the internally defined TLSIO_OPERATION_TIMEOUT_SECONDS it shall log an error and enter TLSIO_STATE_EX_ERROR. ]*/
+			/* Codes_SRS_TLSIO_30_081: [ If the connection process takes longer than the internally defined TLSIO_OPERATION_TIMEOUT_SECONDS, tlsio_dowork shall log an error, call on_io_open_complete with the on_io_open_complete_context parameter provided in tlsio_open and IO_OPEN_ERROR, and enter TLSIO_STATE_EX_ERROR. ]*/
 			check_for_open_timeout(tls_io_instance);
 		}
 	}
