@@ -13,6 +13,7 @@
 // accurate during tlsio callbacks.
 // This function exists only for unit testing builds and must never be
 // called in production code.
+/* Tests_SRS_TLSIO_OPENSSL_COMPACT_30_300: [ If TLSIO_STATE_VERIFICATION_ENABLE is #defined in the compiler, the tlsio adapter shall implement  tlsio_verify_internal_state . ]*/
 int tlsio_verify_internal_state(const CONCRETE_IO_HANDLE tlsio_in,
 	TLSIO_STATE_EXT expected_state, size_t expected_message_queue_length)
 {
