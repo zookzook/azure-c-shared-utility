@@ -31,6 +31,7 @@ typedef enum
 int tlsio_verify_internal_state(const CONCRETE_IO_HANDLE tlsio_in,
 	TLSIO_STATE_EXT expected_state, size_t expected_message_queue_length);
 
+#define TLSIO_ASSERT_INTERNAL_STATE(a, b, c) ASSERT_ARE_EQUAL(int, 0, tlsio_verify_internal_state(a,b,c))
 #ifdef __cplusplus
 }
 #endif /* __cplusplus */

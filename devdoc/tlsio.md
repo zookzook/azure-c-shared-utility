@@ -284,6 +284,10 @@ The phrase "enter TLSIO_STATE_EXT_OPENING" means the adapter will continute the 
 ##### "enter TLSIO_STATE_EXT_OPEN"
 **SRS_TLSIO_30_007: [** The phrase "enter TLSIO_STATE_EXT_OPEN" means the adapter shall call the `on_io_open_complete` function and pass IO_OPEN_OK and the `on_io_open_complete_context` that was supplied in `tlsio_open`. **]**
 
+##### "destroy the failed message"
+**SRS_TLSIO_30_002: [** The phrase "destroy the failed message" means that the adapter shall remove the message from the queue and destroy it after calling the message's `on_send_complete` along with its associated `callback_context` and `IO_SEND_ERROR`. **]**
+
+
 
 
 ## API Calls
@@ -439,13 +443,11 @@ Transitioning from TLSIO_STATE_EXT_OPENING to TLSIO_STATE_EXT_OPEN may require m
 
 #### Data transmission behaviors
 
-**SRS_TLSIO_30_090: [** If an enqueued message size is 0, the `tlsio_dowork` shall just call the `on_send_complete` with the `callback_context` and `IO_SEND_OK`. **]**
-
 **SRS_TLSIO_30_091: [** If `tlsio_dowork` is able to send all the bytes in an enqueued message, it shall call the messages's `on_send_complete` along with its associated `callback_context` and `IO_SEND_OK`. **]**
 
-**SRS_TLSIO_30_092: [** If the send process for any given message takes longer than the internally defined `TLSIO_OPERATION_TIMEOUT_SECONDS` it call the message's `on_send_complete` along with its associated `callback_context` and `IO_SEND_ERROR`. **]**
+**SRS_TLSIO_30_092: [** If the send process for any given message takes longer than the internally defined `TLSIO_OPERATION_TIMEOUT_SECONDS` it shall [destroy the failed message](#destroy-the-failed-message "Remove the message from the queue and destroy it after calling the message's `on_send_complete` along with its associated `callback_context` and `IO_SEND_ERROR`.") and [enter TLSIO_STATE_EX_ERROR](#enter-TLSIO_STATE_EXT_ERROR "Call the `on_io_error` function and pass the `on_io_error_context` that was supplied in `tlsio_open`."). **]**
 
-**SRS_TLSIO_30_093: [** If the OpenSSL send was not able to send an entire enqueued message at once, subsequent calls to `tlsio_dowork` shall repeat OpenSSL send for the remaining bytes. **]**
+**SRS_TLSIO_30_093: [** If the TLS connection was not able to send an entire enqueued message at once, subsequent calls to `tlsio_dowork` shall continue to send the remaining bytes. **]**
 
 /// DELETE ME ///////////////////////////////////////////////////////////////////
 **SRS_TLSIO_30_094: [** If the send process encounters an internal error or calls `on_send_complete` with `IO_SEND_ERROR` due to either failure or timeout, it shall also call `on_io_error` and pass in the associated `on_io_error_context`. **]**

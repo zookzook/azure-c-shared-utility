@@ -652,52 +652,46 @@ static void dowork_send(TLS_IO_INSTANCE* tls_io_instance)
 		time_t now = get_time(NULL);
 		if (now > tls_io_instance->operation_timeout_end_time)
 		{
-			/* Codes_SRS_TLSIO_30_092: [ If the send process for any given message takes longer than the internally defined TLSIO_OPERATION_TIMEOUT_SECONDS it call the message's on_send_complete along with its associated callback_context and IO_SEND_ERROR. ]*/
+			/* Codes_SRS_TLSIO_30_002: [ The phrase "destroy the failed message" means that the adapter shall remove the message from the queue and destroy it after calling the message's on_send_complete along with its associated callback_context and IO_SEND_ERROR. ]*/
+			/* Codes_SRS_TLSIO_30_005: [ When the adapter enters TLSIO_STATE_EXT_ERROR it shall call the  on_io_error function and pass the on_io_error_context that were supplied in  tlsio_open . ]*/
+			/* Codes_SRS_TLSIO_30_092: [ If the send process for any given message takes longer than the internally defined TLSIO_OPERATION_TIMEOUT_SECONDS it shall destroy the failed message and enter TLSIO_STATE_EX_ERROR. ]*/
 			LogInfo("send timeout");
 			close_and_destroy_head_message(tls_io_instance, IO_SEND_ERROR);
 		}
 		else
 		{
-			if (pending_message->unsent_size == 0)
-			{
-				/* Codes_SRS_TLSIO_30_090: [ If an enqueued message size is 0, the tlsio_openssl_compact_dowork shall just call the on_send_complete with the callback_context and IO_SEND_OK. ]*/
-				close_and_destroy_head_message(tls_io_instance, IO_SEND_OK);
-			}
-			else
-			{
-				uint8_t* buffer = ((uint8_t*)pending_message->bytes) +
-					pending_message->size - pending_message->unsent_size;
-				int write_result = SSL_write(tls_io_instance->ssl, buffer, pending_message->unsent_size);
-				// https://wiki.openssl.org/index.php/Manual:SSL_write(3)
+			uint8_t* buffer = ((uint8_t*)pending_message->bytes) +
+				pending_message->size - pending_message->unsent_size;
+			int write_result = SSL_write(tls_io_instance->ssl, buffer, pending_message->unsent_size);
+			// https://wiki.openssl.org/index.php/Manual:SSL_write(3)
 
-				if (write_result > 0)
+			if (write_result > 0)
+			{
+				pending_message->unsent_size -= write_result;
+				if (pending_message->unsent_size == 0)
 				{
-					pending_message->unsent_size -= write_result;
-					if (pending_message->unsent_size == 0)
-					{
-						/* Codes_SRS_TLSIO_30_091: [ If tlsio_openssl_compact_dowork is able to send all the bytes in an enqueued message, it shall call the messages's on_send_complete along with its associated callback_context and IO_SEND_OK. ]*/
-						// The whole message has been sent successfully
-						close_and_destroy_head_message(tls_io_instance, IO_SEND_OK);
-					}
-					else
-					{
-						/* Codes_SRS_TLSIO_30_093: [ If the OpenSSL send was not able to send an entire enqueued message at once, subsequent calls to tlsio_openssl_compact_dowork shall repeat OpenSSL send for the remaining bytes. ]*/
-						// Repeat the send on the next pass with the rest of the message
-						// This empty else compiles to nothing but helps readability
-					}
+					/* Codes_SRS_TLSIO_30_091: [ If tlsio_openssl_compact_dowork is able to send all the bytes in an enqueued message, it shall call the messages's on_send_complete along with its associated callback_context and IO_SEND_OK. ]*/
+					// The whole message has been sent successfully
+					close_and_destroy_head_message(tls_io_instance, IO_SEND_OK);
 				}
 				else
 				{
-					// SSL_write returned non-success. It may just be busy, or it may be broken.
-					int hard_error = is_hard_ssl_error(tls_io_instance->ssl, write_result);
-					if (hard_error != 0)
-					{
-						/* Codes_SRS_TLSIO_30_095: [ If the send process fails before sending all of the bytes in an enqueued message, the tlsio_openssl_compact_dowork shall call the message's on_send_complete along with its associated callback_context and IO_SEND_ERROR. ]*/
-						// This is an unexpected error, and we need to bail out. Probably
-						// lost internet connection.
-						LogInfo("Error from SSL_write: %d", hard_error);
-						close_and_destroy_head_message(tls_io_instance, IO_SEND_ERROR);
-					}
+					/* Codes_SRS_TLSIO_30_093: [ If the TLS connection was not able to send an entire enqueued message at once, subsequent calls to tlsio_dowork shall continue to send the remaining bytes. ]*/
+					// Repeat the send on the next pass with the rest of the message
+					// This empty else compiles to nothing but helps readability
+				}
+			}
+			else
+			{
+				// SSL_write returned non-success. It may just be busy, or it may be broken.
+				int hard_error = is_hard_ssl_error(tls_io_instance->ssl, write_result);
+				if (hard_error != 0)
+				{
+					/* Codes_SRS_TLSIO_30_095: [ If the send process fails before sending all of the bytes in an enqueued message, the tlsio_openssl_compact_dowork shall call the message's on_send_complete along with its associated callback_context and IO_SEND_ERROR. ]*/
+					// This is an unexpected error, and we need to bail out. Probably
+					// lost internet connection.
+					LogInfo("Error from SSL_write: %d", hard_error);
+					close_and_destroy_head_message(tls_io_instance, IO_SEND_ERROR);
 				}
 			}
 		}
