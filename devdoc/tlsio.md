@@ -209,6 +209,8 @@ This list shows the effect of the calls as a function of state with happy intern
   </tr>
 </table>
 
+![State transition diagram](tlsio_state_diagram.png)
+
 ## Design Decisions
 
 This section describes design decisions and their rationale. These decisions are not themselves part of the specifications, 
