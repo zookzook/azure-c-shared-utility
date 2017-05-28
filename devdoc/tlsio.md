@@ -209,7 +209,7 @@ This list shows the effect of the calls as a function of state with happy intern
   </tr>
 </table>
 
-![State transition diagram](tlsio_state_diagram.png)
+![State transition diagram](img/tlsio_state_diagram.png)
 
 ## Design Decisions
 
