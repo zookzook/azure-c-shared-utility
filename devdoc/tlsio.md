@@ -11,6 +11,8 @@ interface and provide communication to remote systems over a TLS-conformant secu
 
 [TLS Protocol (generic information)](https://en.wikipedia.org/wiki/Transport_Layer_Security)
 
+[tlsio base specification](https://github.com/Azure/azure-c-shared-utility/blob/master/devdoc/tlsio.md)
+
 [xio.h](https://github.com/Azure/azure-c-shared-utility/blob/master/inc/azure_c_shared_utility/xio.h)
 
 
@@ -105,7 +107,7 @@ The external state of the tlsio adapter is determined by which of the adapter's 
   * `on_ tlsio _error` has been called from `tlsio_dowork`
 
 ## State Transitions
-This list shows the effect of the calls as a function of state with happy internal functionality. Unhappy functionality is not shown because it always ends in TLSIO_STATE_EXT_ERROR. The `tlsio_setoption` and `tlsio_getoptions` calls are not shown because they have no effect on state and are always allowed. Calls to `tlsio_send` also do not affect state, but are allowed only during TLSIO_STATE_EXT_OPEN.
+This list shows the effect of the calls as a function of state with happy internal functionality. Unhappy functionality is not shown but usually ends in TLSIO_STATE_EXT_ERROR. The `tlsio_setoption` and `tlsio_getoptions` calls are not shown because they have no effect on state and are always allowed. Calls to `tlsio_send` also do not affect state, and are allowed only during TLSIO_STATE_EXT_OPEN.
 
 <table>
   <tr>From state <b>TLSIO_STATE_EXT_CLOSED</b></tr>
@@ -143,7 +145,7 @@ This list shows the effect of the calls as a function of state with happy intern
   </tr>
   <tr>
     <td>tlsio_dowork</td>
-    <td>ok (continue opening), remain in TLSIO_STATE_OPENING or enter TLSIO_STATE_OPEN</td>
+    <td>ok (continue opening), remain in TLSIO_STATE_EXT_OPENING or enter TLSIO_STATE_EXT_OPEN</td>
   </tr>
 </table>
 
@@ -230,8 +232,7 @@ tlsio shall only accept messages for transmission when it is in the TLSIO_STATE_
   3. Accepting messages in other states would require non-trivial design and unit test work and force the redesign of higher levels without adding any real functionality.
 
 **Redundant callback during `tlsio_open`**: If `tlsio_open` fails, the tlsio adapter shall call the supplied `on_io_open_complete` 
-callback. This implies that the adapter must enter the TLSIO_STATE_ERROR state rather than remaining in TLSIO_STATE_CLOSED, 
-which would be more natural.<br/>
+callback.<br/>
 **Reason for redundant callback**: The reason for callbacks in the first place is because asynchronous operations cannot 
 always provide all necessary feedback in their return values. In the case of a failed "begin operation" such as tlsio_open, 
 the failure return already contains all of the useful information, making the callback redundant. In a greenfield design, 
@@ -249,7 +250,7 @@ but shall not alter its internal state. Usage errors include:
 * The behavior of existing tlsio adapters is not consistent in this regard. For example, tlsio_arduino does change state on usage errors but tlsio_open_ssl, tlsio_mbedtls, tlsio_schannel, and tlsio_wolfssl do not. Fortunately the upper-level modules that use tlsio adapters do not perform improper usage, so they don't depend on improper usage acting in any particular way.
 * The tlsio adapter must handle and announce usage errors sensibly. But it is not possible to anticipate whether entering TLSIO_STATE_EXT_ERROR would aid the troubleshooting process or impede it, so the tlsio adapter shall favor design simplicity rather than getting its internal knickers in a knot by changing state when usage errors occur.
 
-**Failed `tlsio_send` calls policy**: If the `tlsio_send` operation fails, the tlsio adapter shall log an error, return failure, and call the message's callback appropriately, but the adapter shall not change its internal state.<br/>**Reason for failed `tlsio_send` policy**: Tlsio adapters conforming to this spec enqueue incoming messages rather than sending them directly, so the only possible errors are usage errors and out-of-memory errors. Neither of these situations calls for the tlsio adapter to change its state, so it won't.
+**Failed `tlsio_send` calls policy**: If the `tlsio_send` operation fails, the tlsio adapter shall log an error, return failure, and call the message's callback appropriately, but the adapter shall not change its internal state.<br/>**Reason for failed `tlsio_send` policy**: Tlsio adapters which conform to this spec enqueue incoming messages rather than sending them directly, so the only possible errors are usage errors and out-of-memory errors. Neither of these situations calls for the tlsio adapter to change its state, so it won't.
 
 **Zero-length messages policy**: The `tlsio_send` call will not accept zero-length messages.<br/>**Reason for zero-length messages policy**: This behavior matches that of existing tlsio adapters.
 
@@ -267,10 +268,10 @@ but shall not alter its internal state. Usage errors include:
 Throughout this document, state transitions only occur as explicitly specified. If no state transition is called out, then none is allowed. (So "do nothing" is always understood as the default.)
 #### Specified state transitions
 
-Requirements in this document use the phrase "shall enter TLSIO_STATE_XXXX" to specify behavior. Here are the definitions of the state transition phrases:
+Requirements in this document use the phrase "shall enter TLSIO_STATE_EXT_XXXX" to specify behavior. Here are the definitions of the state transition phrases:
 
 ##### "enter TLSIO_STATE_EXT_ERROR"
-**SRS_TLSIO_30_005: [** When "enter TLSIO_STATE_EXT_ERROR" is specified the adapter shall call the `on_io_error` function and pass the `on_io_error_context` that was supplied in `tlsio_open`. **]**
+**SRS_TLSIO_30_005: [** The phrase "enter TLSIO_STATE_EXT_ERROR" means the adapter shall call the `on_io_error` function and pass the `on_io_error_context` that was supplied in `tlsio_open`. **]**
 
 ##### "enter TLSIO_STATE_EXT_CLOSING"
 **SRS_TLSIO_30_009: [** The phrase "enter TLSIO_STATE_EXT_CLOSING" means the adapter shall iterate through any unsent messages in the queue and shall delete each message after calling its `on_send_complete` with the associated `callback_context` and `IO_SEND_CANCELLED`. **]**
@@ -279,7 +280,7 @@ Requirements in this document use the phrase "shall enter TLSIO_STATE_XXXX" to s
 **SRS_TLSIO_30_006: [** The phrase "enter TLSIO_STATE_EXT_CLOSED" means the adapter shall forcibly close any existing connections then call the `on_io_close_complete` function and pass the `on_io_close_complete_context` that was supplied in `tlsio_close`. **]**
 
 ##### "enter TLSIO_STATE_EXT_OPENING"
-The phrase "enter TLSIO_STATE_EXT_OPENING" means the adapter will continute the process of opening the TSL connection to the host on the next `tlsio_dowork` call but no externally visible action is being specified.
+The phrase "enter TLSIO_STATE_EXT_OPENING" means the adapter will continute the process of opening the TSL connection to the host on the next `tlsio_dowork` call, but no other externally visible action is being specified.
 
 ##### "enter TLSIO_STATE_EXT_OPEN"
 **SRS_TLSIO_30_007: [** The phrase "enter TLSIO_STATE_EXT_OPEN" means the adapter shall call the `on_io_open_complete` function and pass IO_OPEN_OK and the `on_io_open_complete_context` that was supplied in `tlsio_open`. **]**
@@ -306,7 +307,7 @@ Implementation of `concrete_io_create`
 CONCRETE_IO_HANDLE tlsio_create(void* io_create_parameters);
 ```
 
-**SRS_TLSIO_30_010: [** The `tlsio_create` shall allocate and initialize all necessary resources and return an instance of the `tlsio` (TLSIO_STATE_CLOSED). **]**
+**SRS_TLSIO_30_010: [** The `tlsio_create` shall allocate and initialize all necessary resources and return an instance of the `tlsio` in TLSIO_STATE_EXT_CLOSED. **]**
 
 **SRS_TLSIO_30_011: [** If any resource allocation fails, `tlsio_create` shall return NULL. **]**
 
@@ -358,13 +359,13 @@ int tlsio_open(
 
 **SRS_TLSIO_30_037: [** If the adapter is in any state other than TLSIO_STATE_EXT_CLOSED when `tlsio_open` is called, it shall log an error, and return _FAILURE_. **]**
 
-**SRS_TLSIO_30_038: [** If `tlsio_open` fails to  [enter TLSIO_STATE_EX_OPENING](#enter-TLSIO_STATE_EXT_OPENING) it shall return _FAILURE_. **]**
+**SRS_TLSIO_30_038: [** If `tlsio_open` fails to  [enter TLSIO_STATE_EX_OPENING](#enter-TLSIO_STATE_EXT_OPENING "Continute the process of opening the TSL connection to the host on the next `tlsio_dowork` call") it shall return _FAILURE_. **]**
 
 **SRS_TLSIO_30_039: [** On failure, `tlsio_open` shall call a non-NULL `on_io_open_complete` with the provided `on_io_open_complete_context` and IO_OPEN_ERROR. **]**
 
 **SRS_TLSIO_30_034: [** On success, `tlsio_open` shall store the provided `on_bytes_received`,  `on_bytes_received_context`, `on_io_error`, `on_io_error_context`, `on_io_open_complete`,  and `on_io_open_complete_context` parameters for later use as specified and tested per other line entries in this document. **]**
 
-**SRS_TLSIO_30_035: [** On success, `tlsio_open` shall cause the adapter to [enter TLSIO_STATE_EX_OPENING](#enter-TLSIO_STATE_EXT_OPENING) and return 0. **]**
+**SRS_TLSIO_30_035: [** On success, `tlsio_open` shall cause the adapter to [enter TLSIO_STATE_EX_OPENING](#enter-TLSIO_STATE_EXT_OPENING "Continute the process of opening the TSL connection to the host on the next `tlsio_dowork` call") and return 0. **]**
 
 
 ###   tlsio_close
@@ -377,7 +378,7 @@ int tlsio_close(CONCRETE_IO_HANDLE tlsio_handle, ON_IO_CLOSE_COMPLETE on_io_clos
 
 **SRS_TLSIO_30_055: [** If the `on_io_close_complete` parameter is NULL, `tlsio_close` shall log an error and return _FAILURE_. **]**
 
-**SRS_TLSIO_30_053: [** If the adapter is in any state other than TLSIO_STATE_EXT_OPEN or TLSIO_STATE_EXT_ERROR `tlsio_close` shall log an error and return _FAILURE_. **]**
+**SRS_TLSIO_30_053: [** If the adapter is in any state other than TLSIO_STATE_EXT_OPEN or TLSIO_STATE_EXT_ERROR then `tlsio_close` shall log an error and return _FAILURE_. **]**
 
 **SRS_TLSIO_30_056: [** On success the adapter shall [enter TLSIO_STATE_EX_CLOSING](#enter-TLSIO_STATE_EXT_CLOSING "Iterate through any unsent messages in the queue and delete each message after calling its `on_send_complete` with the associated `callback_context` and `IO_SEND_CANCELLED`."). **]**
 
@@ -425,9 +426,11 @@ The `tlsio_dowork` call executes async jobs for the tlsio. This includes connect
 
 **SRS_TLSIO_30_075: [** If the adapter is in TLSIO_STATE_EXT_CLOSED then `tlsio_dowork` shall do nothing. **]**
 
-**SRS_TLSIO_30_077: [** If the adapter is in TLSIO_STATE_EXT_CLOSING then `tlsio_dowork` is called during TLSIO_STATE_EXT_OPENING, `tlsio_dowork` shall perform the [TLSIO_STATE_EXT_OPENING behaviors](#TLSIO_STATE_EXT_OPENING-behaviors) but not the [Data transmission behaviors](#data-transmission-behaviors) or the [Data reception behaviors](#data-reception-behaviors). **]**
+**SRS_TLSIO_30_077: [** If the adapter is in TLSIO_STATE_EXT_OPENING then `tlsio_dowork` shall perform only the [TLSIO_STATE_EXT_OPENING behaviors](#TLSIO_STATE_EXT_OPENING-behaviors). **]**
 
-**SRS_TLSIO_30_078: [** If `tlsio_dowork` is called during TLSIO_STATE_EXT_OPENING, `tlsio_dowork` shall perform the [Data transmission behaviors](#data-transmission-behaviors) and then the [Data reception behaviors](#data-reception-behaviors) but not the [TLSIO_STATE_EXT_OPENING behaviors](#TLSIO_STATE_EXT_OPENING-behaviors). **]**
+**SRS_TLSIO_30_077: [** If the adapter is in TLSIO_STATE_EXT_OPEN  then `tlsio_dowork` shall perform only the [Data transmission behaviors](#data-transmission-behaviors) and the [Data reception behaviors](#data-reception-behaviors). **]**
+
+**SRS_TLSIO_30_078: [** If the adapter is in TLSIO_STATE_EXT_CLOSING then `tlsio_dowork` shall perform only the [TLSIO_STATE_EXT_CLOSING behaviors](#TLSIO_STATE_EXT_CLOSING-behaviors). **]**
 
 #### TLSIO_STATE_EXT_OPENING behaviors
 
