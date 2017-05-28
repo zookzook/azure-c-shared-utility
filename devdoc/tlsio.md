@@ -331,7 +331,7 @@ void tlsio_destroy(CONCRETE_IO_HANDLE tlsio_handle);
 
 **SRS_TLSIO_30_021: [** The `tlsio_destroy` shall release all allocated resources and then release `tlsio_handle`. **]**
 
-**SRS_TLSIO_30_022: [** If the adapter is in any state other than TLSIO_STATE_EX_CLOSED when `tlsio_destroy` is called, the adapter shall [enter TLSIO_STATE_EX_CLOSING](#enter-TLSIO_STATE_EXT_CLOSING "Iterate through any unsent messages in the queue and delete each message after calling its `on_send_complete` with the associated `callback_context` and `IO_SEND_CANCELLED`.") and then [enter TLSIO_STATE_EX_CLOSED](#enter-TLSIO_STATE_EXT_CLOSED "Forcibly close any existing connections then call the `on_io_close_complete` function and pass the `on_io_close_complete_context` that was supplied in `tlsio_close`.") before completing the destroy process. **]**
+**SRS_TLSIO_30_022: [** If the adapter is in any state other than TLSIO_STATE_EX_CLOSED when `tlsio_destroy` is called, the adapter shall [enter TLSIO_STATE_EX_CLOSING](#enter-TLSIO_STATE_EXT_CLOSING "Iterate through any unsent messages in the queue and delete each message after calling its `on_send_complete` with the associated `callback_context` and `IO_SEND_CANCELLED`.") and then [enter TLSIO_STATE_EXT_CLOSED](#enter-TLSIO_STATE_EXT_CLOSED "Forcibly close any existing connections then call the `on_io_close_complete` function and pass the `on_io_close_complete_context` that was supplied in `tlsio_close`.") before completing the destroy process. **]**
 
 
 ###   tlsio_open
@@ -381,7 +381,7 @@ int tlsio_close(CONCRETE_IO_HANDLE tlsio_handle, ON_IO_CLOSE_COMPLETE on_io_clos
 
 **SRS_TLSIO_30_056: [** On success the adapter shall [enter TLSIO_STATE_EX_CLOSING](#enter-TLSIO_STATE_EXT_CLOSING "Iterate through any unsent messages in the queue and delete each message after calling its `on_send_complete` with the associated `callback_context` and `IO_SEND_CANCELLED`."). **]**
 
-**SRS_TLSIO_30_051: [** On success, if the underlying TLS does not support asynchronous closing, then the adapter shall [enter TLSIO_STATE_EX_CLOSED](#enter-TLSIO_STATE_EXT_CLOSED "Forcibly close any existing connections then call the `on_io_close_complete` function and pass the `on_io_close_complete_context` that was supplied in `tlsio_close`.") immediately after entering TLSIO_STATE_EX_CLOSING. **]**
+**SRS_TLSIO_30_051: [** On success, if the underlying TLS does not support asynchronous closing, then the adapter shall [enter TLSIO_STATE_EXT_CLOSED](#enter-TLSIO_STATE_EXT_CLOSED "Forcibly close any existing connections then call the `on_io_close_complete` function and pass the `on_io_close_complete_context` that was supplied in `tlsio_close`.") immediately after entering TLSIO_STATE_EX_CLOSING. **]**
 
 **SRS_TLSIO_30_052: [** On success`tlsio_close` shall return 0. **]**
 
@@ -425,7 +425,7 @@ The `tlsio_dowork` call executes async jobs for the tlsio. This includes connect
 
 **SRS_TLSIO_30_075: [** If the adapter is in TLSIO_STATE_EXT_CLOSED then `tlsio_dowork` shall do nothing. **]**
 
-**SRS_TLSIO_30_077: [** If `tlsio_dowork` is called during TLSIO_STATE_EXT_OPENING, `tlsio_dowork` shall perform the [TLSIO_STATE_EXT_OPENING behaviors](#TLSIO_STATE_EXT_OPENING-behaviors) but not the [Data transmission behaviors](#data-transmission-behaviors) or the [Data reception behaviors](#data-reception-behaviors). **]**
+**SRS_TLSIO_30_077: [** If the adapter is in TLSIO_STATE_EXT_CLOSING then `tlsio_dowork` is called during TLSIO_STATE_EXT_OPENING, `tlsio_dowork` shall perform the [TLSIO_STATE_EXT_OPENING behaviors](#TLSIO_STATE_EXT_OPENING-behaviors) but not the [Data transmission behaviors](#data-transmission-behaviors) or the [Data reception behaviors](#data-reception-behaviors). **]**
 
 **SRS_TLSIO_30_078: [** If `tlsio_dowork` is called during TLSIO_STATE_EXT_OPENING, `tlsio_dowork` shall perform the [Data transmission behaviors](#data-transmission-behaviors) and then the [Data reception behaviors](#data-reception-behaviors) but not the [TLSIO_STATE_EXT_OPENING behaviors](#TLSIO_STATE_EXT_OPENING-behaviors). **]**
 
@@ -459,6 +459,15 @@ Transitioning from TLSIO_STATE_EXT_OPENING to TLSIO_STATE_EXT_OPEN may require m
 
 **SRS_TLSIO_30_102: [** If the TLS connection receives no data then `tlsio_dowork` shall not call the  `on_bytes_received` callback. **]**
 
+#### TLSIO_STATE_EXT_CLOSING behaviors
+
+Adapters whose underlying TLS connection does not have an asynchronous 'closing' state will not have an externally visible TLSIO_STATE_EXT_CLOSING state and so their `tlsio_dowork` will not perform these behaviors.
+
+**SRS_TLSIO_30_105: [** If the closing process takes longer than the internally defined `TLSIO_OPERATION_TIMEOUT_SECONDS`, `tlsio_dowork` shall [enter TLSIO_STATE_EX_ERROR](#enter-TLSIO_STATE_EXT_ERROR "Call the `on_io_error` function and pass the `on_io_error_context` that was supplied in `tlsio_open`."). **]**
+
+**SRS_TLSIO_30_106: [** If the closing process fails, `tlsio_dowork` shall [enter TLSIO_STATE_EX_ERROR](#enter-TLSIO_STATE_EXT_ERROR "Call the `on_io_error` function and pass the `on_io_error_context` that was supplied in `tlsio_open`."). **]**
+
+**SRS_TLSIO_30_107: [** If the closing process ends gracefully, `tlsio_dowork` shall [enter TLSIO_STATE_EXT_CLOSED](#enter-TLSIO_STATE_EXT_CLOSED "Forcibly close any existing connections then call the `on_io_close_complete` function and pass the `on_io_close_complete_context` that was supplied in `tlsio_close`."). **]**
 
 ###   tlsio_setoption
 Implementation of `IO_SETOPTION concrete_io_setoption`
