@@ -449,10 +449,6 @@ Transitioning from TLSIO_STATE_EXT_OPENING to TLSIO_STATE_EXT_OPEN may require m
 
 **SRS_TLSIO_30_093: [** If the TLS connection was not able to send an entire enqueued message at once, subsequent calls to `tlsio_dowork` shall continue to send the remaining bytes. **]**
 
-/// DELETE ME ///////////////////////////////////////////////////////////////////
-**SRS_TLSIO_30_094: [** If the send process encounters an internal error or calls `on_send_complete` with `IO_SEND_ERROR` due to either failure or timeout, it shall also call `on_io_error` and pass in the associated `on_io_error_context`. **]**
-/// DELETE ME //////////////////////////////////////////////////////////////////
-
 **SRS_TLSIO_30_095: [** If the send process fails before sending all of the bytes in an enqueued message, the `tlsio_dowork` shall call the message's `on_send_complete` along with its associated `callback_context` and `IO_SEND_ERROR`. **]**
 
 **SRS_TLSIO_30_096: [** If there are no enqueued messages available, `tlsio_dowork` shall do nothing. **]**
