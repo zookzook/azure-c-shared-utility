@@ -583,12 +583,12 @@ static void dowork_read(TLS_IO_INSTANCE* tls_io_instance)
 		{
 			// tls_io_instance->on_bytes_received was already checked for NULL
 			// in the call to tlsio_openssl_open
-			/* Codes_SRS_TLSIO_30_100: [ If the OpenSSL client is able to provide received data, the tlsio_openssl_compact_dowork shall read this data and call on_bytes_received with the pointer to the buffer containing the data, the number of bytes received, and the on_bytes_received_context. ]*/
+			/* Codes_SRS_TLSIO_30_100: [ If the TLS connection is able to provide received data, tlsio_dowork shall read this data and call on_bytes_received with the pointer to the buffer containing the data, the number of bytes received, and the on_bytes_received_context. ]*/
 			tls_io_instance->on_bytes_received(tls_io_instance->on_bytes_received_context, buffer, rcv_bytes);
 		}
 		else
 		{
-			/* Codes_SRS_TLSIO_30_102: [ If the OpenSSL client gets no data from its SSL_recv call then it shall not call the on_bytes_received callback. ]*/
+			/* Codes_SRS_TLSIO_30_102: [ If the TLS connection receives no data then tlsio_dowork shall not call the on_bytes_received callback. ]*/
 		}
 	}
 }
