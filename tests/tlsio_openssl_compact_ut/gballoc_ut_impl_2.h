@@ -5,6 +5,7 @@
 // is broken out for reuse and readability. 
 
 
+// This adds memory checking to the gballoc mocking
 // NOTE: Using ASSERTs wouuld be nice, but this file must preceed their definition
 // to avoid the malloc infinite recursion problem
 

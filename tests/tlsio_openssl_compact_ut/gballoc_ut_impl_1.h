@@ -4,7 +4,8 @@
 // This file is made an integral part of a unit test implementation with a #include. It
 // is broken out for reuse and readability. 
 
-
+// These functions add memory leak checking to the unit test itself rather than
+// relying on Valgrind, which is inconvenient for troubleshooting.
 static void add_gballoc_memory_block(void* block);
 static void remove_gballoc_memory_block(void* block);
 
