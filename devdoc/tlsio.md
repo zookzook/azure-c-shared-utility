@@ -476,6 +476,8 @@ Adapters whose underlying TLS connection does not have an asynchronous 'closing'
 
 ###   tlsio_setoption
 Implementation of `IO_SETOPTION concrete_io_setoption`
+
+The options are conceptually part of `tlsio_create` in that options which are set persist until the instance is destroyed. 
 ```c
 int tlsio_setoption(CONCRETE_IO_HANDLE tlsio_handle, const char* optionName, const void* value);
 ```
@@ -490,6 +492,9 @@ int tlsio_setoption(CONCRETE_IO_HANDLE tlsio_handle, const char* optionName, con
 
 ###   tlsio_retrieveoptions
 Implementation of `IO_RETRIEVEOPTIONS concrete_io_retrieveoptions`
+
+The options are conceptually part of `tlsio_create` in that options which are set persist until the instance is destroyed. 
+
 ```c
 OPTIONHANDLER_HANDLE tlsio_retrieveoptions(CONCRETE_IO_HANDLE tlsio_handle);
 ```
