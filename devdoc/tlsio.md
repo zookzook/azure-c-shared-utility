@@ -67,25 +67,25 @@ typedef void(*ON_IO_OPEN_COMPLETE)(void* context, IO_OPEN_RESULT open_result);
 typedef void(*ON_IO_CLOSE_COMPLETE)(void* context);
 typedef void(*ON_IO_ERROR)(void* context);
 
- typedef struct TLSIO_CONFIG_TAG
- {
-    const char* hostname;
-    int port;
- } TLSIO_CONFIG;
- ```
+typedef struct TLSIO_CONFIG_TAG
+{
+const char* hostname;
+int port;
+} TLSIO_CONFIG;
+```
 
 
 **SRS_TLSIO_30_003: [** Tlsio adapter implementations shall define and observe the internally defined `TLSIO_OPERATION_TIMEOUT_SECONDS` timeout value for opening, closing, and sending processes:
-  ```c
+ ```c
 // This value is considered an emergency limit rather than a useful tuning parameter,
 // so it is not adjustable via the more expensive get / set options system
 #ifndef TLSIO_OPERATION_TIMEOUT_SECONDS
 #define TLSIO_OPERATION_TIMEOUT_SECONDS 40
 #endif // !TLSIO_OPERATION_TIMEOUT_SECONDS
-  ```
+ ```
 **]**
 
-**SRS_TLSIO_30_004: [** Tlsio implementations which use an internal buffer to pass data into the `on_bytes_received` callback shall define the size of this buffer with the internally defined `TLSIO_RECEIVE_BUFFER_SIZE` value.
+**SRS_TLSIO_30_004: [** If the tlsio implementation uses an internal buffer to pass data into the `on_bytes_received` callback, it shall define the size of this buffer with the internally defined `TLSIO_RECEIVE_BUFFER_SIZE` value.
   ```c
 // The TLSIO_RECEIVE_BUFFER_SIZE has very little effect on performance, and is kept small
 // to minimize memory consumption.
@@ -104,7 +104,7 @@ The external state of the tlsio adapter is determined by which of the adapter's 
 * TLSIO_STATE_EXT_CLOSING means that the `tlsio_close` call has completed successfully but the `on_tlsio_close_complete` callback has not been performed.
 * TLSIO_STATE_EXT_ERROR is the state entered (or maintained) after either of the following occurrences:
   * `on_tlsio_open_complete` has been called with `IO_OPEN_ERROR` from `tlsio_dowork`
-  * `on_ tlsio _error` has been called from `tlsio_dowork`
+  * `on_io_error` has been called from `tlsio_dowork`
 
 ## State Transitions
 This list shows the effect of the calls as a function of state with happy internal functionality. Unhappy functionality is not shown but usually ends in TLSIO_STATE_EXT_ERROR. The `tlsio_setoption` and `tlsio_getoptions` calls are not shown because they have no effect on state and are always allowed. Calls to `tlsio_send` also do not affect state, and are allowed only during TLSIO_STATE_EXT_OPEN.
