@@ -161,7 +161,7 @@ This list shows the effect of the calls as a function of state with happy intern
   </tr>
   <tr>
     <td>tlsio_close</td>
-    <td>ok, enter TLSIO_STATE_EXT_CLOSING</td>
+    <td>adapters with internal async close: ok, enter TLSIO_STATE_EXT_CLOSING<br/>adatpers without internal async close: ok, enter TLSIO_STATE_EXT_CLOSING, then immediately enter TLSION_STATE_EXT_CLOSED</td>
   </tr>
   <tr>
     <td>tlsio_dowork</td>
