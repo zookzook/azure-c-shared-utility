@@ -123,7 +123,7 @@ static bool close_and_destroy_head_message(TLS_IO_INSTANCE* tls_io_instance, IO_
 			// This particular situation is a bizarre and unrecoverable internal error
 			/* Codes_SRS_TLSIO_30_094: [ If the send process encounters an internal error or calls on_send_complete with IO_SEND_ERROR due to either failure or timeout, it shall also call on_io_error and pass in the associated on_io_error_context. ]*/
 			enter_tlsio_error_state(tls_io_instance);
-			LogError("Unrecoverable program bug: unable to remove message from list");
+			LogError("Failed to remove message from list");
 		}
 		result = true;
 	}
@@ -578,7 +578,7 @@ static void dowork_read(TLS_IO_INSTANCE* tls_io_instance)
 	{
 		// SSL_read is not checked for errors because the "no data" condition is reported as a 
 		// failure, but the docs do not guarantee that it will always be the same failure,
-		// so we have no reliable wayto distinguish "no data" from something else.
+		// so we have no reliable way to distinguish "no data" from something else.
 		rcv_bytes = SSL_read(tls_io_instance->ssl, buffer, sizeof(buffer));
 		if (rcv_bytes > 0)
 		{
@@ -801,7 +801,7 @@ static void dowork_poll_open_ssl(TLS_IO_INSTANCE* tls_io_instance)
 
 	// The following note applies to the Espressif ESP32 implementation
 	// of OpenSSL:
-	// The manual pages seem to be incorrect. They say that 0 is a failure,
+	// The manual pages say that 0 is a failure,
 	// but by experiment, 0 is the success result, at least when using
 	// SSL_set_fd instead of custom BIO.
 	// https://www.openssl.org/docs/man1.0.2/ssl/SSL_connect.html
@@ -869,7 +869,7 @@ void tlsio_openssl_dowork(CONCRETE_IO_HANDLE tls_io)
 			// There's nothing valid to do here but wait to be retried
 			break;
 		default:
-			LogError("Unrecoverable program bug: unexpected internal tlsio state");
+			LogError("Unexpected internal tlsio state");
 			break;
 		}
 	}
@@ -903,7 +903,7 @@ int tlsio_openssl_setoption(CONCRETE_IO_HANDLE tls_io, const char* optionName, c
 			}
 			else
 			{
-				/* Codes_SRS_TLSIO_30_123 [ The tlsio_openssl_compact_setoption shall do nothing and return 0. ]*/
+				/* Codes_SRS_TLSIO_OPENSSL_COMPACT_30_520 [ The  tlsio_setoption  shall do nothing and return 0. ]*/
 				result = 0;
 			}
 		}
@@ -911,7 +911,7 @@ int tlsio_openssl_setoption(CONCRETE_IO_HANDLE tls_io, const char* optionName, c
 	return result;
 }
 
-/* Codes_SRS_TLSIO_30_161: [ The tlsio_openssl_compact_retrieveoptions shall do nothing and return NULL. ]*/
+/* Codes_SRS_TLSIO_OPENSSL_COMPACT_30_560: [ The  tlsio_retrieveoptions  shall do nothing and return NULL. ]*/
 static OPTIONHANDLER_HANDLE tlsio_openssl_retrieveoptions(CONCRETE_IO_HANDLE tls_io)
 {
 	TLS_IO_INSTANCE* tls_io_instance = (TLS_IO_INSTANCE*)tls_io;

@@ -1,3 +1,9 @@
+// Copyright(c) Microsoft.All rights reserved.
+// Licensed under the MIT license. See LICENSE file in the project root for full license information.
+
+// This file is made an integral part of a tlsio adapter implementation with a #include. It
+// is broken out for readability. 
+
 #define TIMEOUT_START_TIME 1000
 #define TIMEOUT_END_TIME_TIMEOUT (TIMEOUT_START_TIME + 41)
 
