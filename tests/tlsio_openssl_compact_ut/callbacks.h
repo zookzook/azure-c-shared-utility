@@ -5,6 +5,9 @@
 // This file is made an integral part of tlsio_openssl_compact.c with a #include. It
 // is broken out for readability. 
 
+#ifndef CALLBACKS_H
+#define CALLBACKS_H
+
 /////////////////////////////////////////////////////////////////////
 //  Empty functions. These must be available to call, but they have no effect
 int TLSv1_2_client_method() { return 0; }
@@ -211,3 +214,5 @@ static void ASSERT_NO_CALLBACKS()
     ASSERT_IO_CLOSE_CALLBACK(false);
     ASSERT_BYTES_RECEIVED_CALLBACK(false);
 }
+
+#endif // CALLBACKS_H

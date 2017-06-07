@@ -3,6 +3,8 @@
 
 // This file is made an integral part of a tlsio adapter implementation with a #include. It
 // is broken out for readability. 
+#ifndef TLSIO_UNIT_TEST_API_IMPL_H
+#define TLSIO_UNIT_TEST_API_IMPL_H
 
 #include "unit_test_api.h"
 
@@ -92,3 +94,5 @@ int tlsio_verify_internal_state(const CONCRETE_IO_HANDLE tlsio_in,
 
 	return result;
 }
+
+#endif // TLSIO_UNIT_TEST_API_IMPL_H

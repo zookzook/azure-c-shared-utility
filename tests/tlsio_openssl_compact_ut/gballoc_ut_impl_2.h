@@ -4,6 +4,9 @@
 // This file is made an integral part of a unit test implementation with a #include. It
 // is broken out for reuse and readability. 
 
+#ifndef GBALLOC_UT_IMPL_2_H
+#define GBALLOC_UT_IMPL_2_H
+
 
 // This adds memory checking to the gballoc mocking
 // NOTE: Using ASSERTs wouuld be nice, but this file must preceed their definition
@@ -74,3 +77,5 @@ static void assert_gballoc_checks()
 		}
 	}
 }
+
+#endif // GBALLOC_UT_IMPL_2_H

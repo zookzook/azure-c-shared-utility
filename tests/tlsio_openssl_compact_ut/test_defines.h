@@ -1,3 +1,12 @@
+// Copyright (c) Microsoft. All rights reserved.
+// Licensed under the MIT license. See LICENSE file in the project root for full license information.
+
+// This file is made an integral part of tlsio_openssl_compact.c with a #include. It
+// is broken out for readability. 
+
+#ifndef TEST_DEFINES_H
+#define TEST_DEFINES_H
+
 #define TIMEOUT_START_TIME 1000
 #define TIMEOUT_END_TIME_TIMEOUT (TIMEOUT_START_TIME + 41)
 
@@ -33,3 +42,5 @@ void populate_create_parameters(create_parameters_t* p, TLSIO_CONFIG* config, co
     }
     p->fail_msg = fail_msg;
 }
+
+#endif // TEST_DEFINES_H

@@ -68,10 +68,6 @@ static int my_socket_async_is_create_complete(SOCKET_ASYNC_HANDLE sock, bool* is
 #include "test_defines.h"
 #include "gballoc_ut_impl_2.h"
 
- /**
-  * Umock error will helps you to identify errors in the test suite or in the way that you are 
-  *    using it, just keep it as is.
-  */
 DEFINE_ENUM_STRINGS(UMOCK_C_ERROR_CODE, UMOCK_C_ERROR_CODE_VALUES)
 
 static void on_umock_c_error(UMOCK_C_ERROR_CODE error_code)
