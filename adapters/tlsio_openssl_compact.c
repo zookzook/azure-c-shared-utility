@@ -463,8 +463,7 @@ static int tlsio_openssl_send_async(CONCRETE_IO_HANDLE tls_io, const void* buffe
 	}
 	else
 	{
-		TLS_IO_INSTANCE* tls_io_instance = (TLS_IO_INSTANCE*)tls_io;
-		if (tls_io_instance == NULL)
+		if (tls_io == NULL)
 		{
 			/* Codes_SRS_TLSIO_30_060: [ If the tlsio_handle parameter is NULL, tlsio_openssl_compact_send shall log an error and return FAILURE. ]*/
 			result = __FAILURE__;
@@ -488,7 +487,8 @@ static int tlsio_openssl_send_async(CONCRETE_IO_HANDLE tls_io, const void* buffe
 				}
 				else
 				{
-					if (tls_io_instance->tlsio_state != TLSIO_STATE_OPEN)
+                    TLS_IO_INSTANCE* tls_io_instance = (TLS_IO_INSTANCE*)tls_io;
+                    if (tls_io_instance->tlsio_state != TLSIO_STATE_OPEN)
 					{
 						/* Codes_SRS_TLSIO_30_065: [ If tlsio_openssl_compact_open has not been called or the opening process has not been completed, tlsio_openssl_compact_send shall log an error and return FAILURE. ]*/
 						result = __FAILURE__;

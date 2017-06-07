@@ -216,6 +216,7 @@ BEGIN_TEST_SUITE(tlsio_openssl_compact_unittests)
         ASSERT_IO_OPEN_CALLBACK(true, IO_OPEN_OK);
     }
 
+    /* Tests_SRS_TLSIO_30_201: [ The "high-level retry sequence" shall succeed after an injected fault which causes on_io_error to be called. ]*/
     TEST_FUNCTION(tlsio_openssl_compact__retry_open_after_io_failure__succeeds)
     {
         ///arrange
@@ -265,7 +266,7 @@ BEGIN_TEST_SUITE(tlsio_openssl_compact_unittests)
 		assert_gballoc_checks();
 	}
 
-    /* Tests_SRS_TLSIO_30_200: [ The tlsio adapter shall successfully retry after an injected fault which causes  on_io_open_complete  to return with  IO_OPEN_ERROR . ]*/
+    /* Tests_SRS_TLSIO_30_200: [ The "high-level retry sequence" shall succeed after an injected fault which causes on_io_open_complete to return with IO_OPEN_ERROR. ]*/
     TEST_FUNCTION(tlsio_openssl_compact__retry_open_after_open_failure__succeeds)
     {
         ///arrange
@@ -517,7 +518,6 @@ BEGIN_TEST_SUITE(tlsio_openssl_compact_unittests)
         tlsio_id->concrete_io_dowork(tlsio); // dowork_poll_socket (done)
         tlsio_id->concrete_io_dowork(tlsio); // dowork_poll_open_ssl (waiting SSL_ERROR_WANT_READ)
         tlsio_id->concrete_io_dowork(tlsio); // dowork_poll_open_ssl (waiting SSL_ERROR_WANT_WRITE)
-        //tlsio_id->concrete_io_dowork(tlsio); // dowork_poll_open_ssl (done)
 
         // Make sure the arrangement is correct so far
         ASSERT_IO_OPEN_CALLBACK(false, IO_OPEN_OK);
@@ -586,7 +586,7 @@ BEGIN_TEST_SUITE(tlsio_openssl_compact_unittests)
 		STRICT_EXPECTED_CALL(gballoc_malloc(IGNORED_NUM_ARG));  // singlylinkedlist_add
 		umock_c_negative_tests_snapshot();
 
-		for (unsigned int i = 0; i < umock_c_negative_tests_call_count(); i++)
+		for (size_t i = 0; i < umock_c_negative_tests_call_count(); i++)
 		{
 			///arrange
 			const IO_INTERFACE_DESCRIPTION* tlsio_id = tlsio_openssl_compact_get_interface_description();
@@ -1056,7 +1056,7 @@ BEGIN_TEST_SUITE(tlsio_openssl_compact_unittests)
 
         umock_c_negative_tests_snapshot();
 
-        for (unsigned int i = 0; i < umock_c_negative_tests_call_count(); i++)
+        for (size_t i = 0; i < umock_c_negative_tests_call_count(); i++)
         {
             reset_callback_context_records();
             const IO_INTERFACE_DESCRIPTION* tlsio_id = tlsio_openssl_compact_get_interface_description();
@@ -1481,7 +1481,7 @@ BEGIN_TEST_SUITE(tlsio_openssl_compact_unittests)
         STRICT_EXPECTED_CALL(gballoc_malloc(IGNORED_NUM_ARG));  // singlylinkedlist_create
         umock_c_negative_tests_snapshot();
 
-        for (unsigned int i = 0; i < umock_c_negative_tests_call_count(); i++)
+        for (size_t i = 0; i < umock_c_negative_tests_call_count(); i++)
         {
             umock_c_negative_tests_reset();
             umock_c_negative_tests_fail_call(i);
