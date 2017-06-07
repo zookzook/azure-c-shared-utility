@@ -248,6 +248,7 @@ BEGIN_TEST_SUITE(tlsio_openssl_compact_unittests)
         tlsio_id->concrete_io_dowork(tlsio); // dowork_poll_socket (done)
 
         reset_callback_context_records();
+		TLSIO_ASSERT_INTERNAL_STATE(tlsio, TLSIO_STATE_EXT_OPENING, 0);
 
         ///act
         // dowork_poll_open_ssl (done)
@@ -264,7 +265,7 @@ BEGIN_TEST_SUITE(tlsio_openssl_compact_unittests)
 		assert_gballoc_checks();
 	}
 
-    /* Tests_SRS_TLSIO_30_040: [ tlsio_openssl_compact_open shall succeed during a 'Failed open retry' as defined at the top of this document. ]*/
+    /* Tests_SRS_TLSIO_30_200: [ The tlsio adapter shall successfully retry after an injected fault which causes  on_io_open_complete  to return with  IO_OPEN_ERROR . ]*/
     TEST_FUNCTION(tlsio_openssl_compact__retry_open_after_open_failure__succeeds)
     {
         ///arrange
@@ -295,6 +296,7 @@ BEGIN_TEST_SUITE(tlsio_openssl_compact_unittests)
         tlsio_id->concrete_io_dowork(tlsio); // dowork_poll_dns (done)
         tlsio_id->concrete_io_dowork(tlsio); // dowork_poll_socket (done)
         reset_callback_context_records();
+		TLSIO_ASSERT_INTERNAL_STATE(tlsio, TLSIO_STATE_EXT_OPENING, 0);
 
         ///act
         tlsio_id->concrete_io_dowork(tlsio);
@@ -335,9 +337,9 @@ BEGIN_TEST_SUITE(tlsio_openssl_compact_unittests)
 
             ///act
             int close_result = tlsio_id->concrete_io_close(p0[i] ? tlsio : NULL, p1[i], IO_CLOSE_COMPLETE_CONTEXT);
-			TLSIO_ASSERT_INTERNAL_STATE(tlsio, TLSIO_STATE_EXT_CLOSED, 0);
 
             ///assert
+			TLSIO_ASSERT_INTERNAL_STATE(tlsio, TLSIO_STATE_EXT_CLOSED, 0);
             ASSERT_ARE_NOT_EQUAL_WITH_MSG(int, 0, close_result, fm[i]);
         }
 
@@ -380,6 +382,7 @@ BEGIN_TEST_SUITE(tlsio_openssl_compact_unittests)
         STRICT_EXPECTED_CALL(gballoc_free(IGNORED_PTR_ARG));
         STRICT_EXPECTED_CALL(gballoc_free(IGNORED_PTR_ARG));
         STRICT_EXPECTED_CALL(gballoc_free(IGNORED_PTR_ARG));
+		TLSIO_ASSERT_INTERNAL_STATE(tlsio, TLSIO_STATE_EXT_OPEN, 2);
         // End of arrange
 
         ///act
@@ -408,6 +411,7 @@ BEGIN_TEST_SUITE(tlsio_openssl_compact_unittests)
         CONCRETE_IO_HANDLE tlsio = tlsio_id->concrete_io_create(&good_config);
         ASSERT_IO_OPEN_CALLBACK(false, IO_OPEN_OK);
         umock_c_reset_all_calls();
+		TLSIO_ASSERT_INTERNAL_STATE(tlsio, TLSIO_STATE_EXT_CLOSED, 0);
 
         ///act
 		int close_result = tlsio_id->concrete_io_close(tlsio, on_io_close_complete, IO_CLOSE_COMPLETE_CONTEXT);
@@ -444,7 +448,8 @@ BEGIN_TEST_SUITE(tlsio_openssl_compact_unittests)
         STRICT_EXPECTED_CALL(SSL_free(SSL_Good_Ptr));
         STRICT_EXPECTED_CALL(SSL_CTX_free(SSL_Good_Context_Ptr));
         STRICT_EXPECTED_CALL(socket_async_destroy(SSL_Good_Socket));
-        // End of arrange
+		TLSIO_ASSERT_INTERNAL_STATE(tlsio, TLSIO_STATE_EXT_OPEN, 0);
+		// End of arrange
 
         ///act
         int close_result = tlsio_id->concrete_io_close(tlsio, on_io_close_complete, IO_CLOSE_COMPLETE_CONTEXT);
@@ -522,7 +527,8 @@ BEGIN_TEST_SUITE(tlsio_openssl_compact_unittests)
         STRICT_EXPECTED_CALL(SSL_free(SSL_Good_Ptr));
         STRICT_EXPECTED_CALL(SSL_CTX_free(SSL_Good_Context_Ptr));
         STRICT_EXPECTED_CALL(socket_async_destroy(SSL_Good_Socket));
-        // End of arrange
+		TLSIO_ASSERT_INTERNAL_STATE(tlsio, TLSIO_STATE_EXT_OPENING, 0);
+		// End of arrange
 
         ///act
         int close_result = tlsio_id->concrete_io_close(tlsio, on_io_close_complete, IO_CLOSE_COMPLETE_CONTEXT);
@@ -552,8 +558,9 @@ BEGIN_TEST_SUITE(tlsio_openssl_compact_unittests)
 		STRICT_EXPECTED_CALL(gballoc_malloc(IGNORED_NUM_ARG));  // PENDING_SOCKET_IO
 		STRICT_EXPECTED_CALL(gballoc_malloc(IGNORED_NUM_ARG));  // message bytes
 		STRICT_EXPECTED_CALL(gballoc_malloc(IGNORED_NUM_ARG));  // singlylinkedlist_add
+		TLSIO_ASSERT_INTERNAL_STATE(tlsio, TLSIO_STATE_EXT_OPEN, 0);
 
-																///act
+		///act
 		int send_result = tlsio_id->concrete_io_send(tlsio, SSL_send_buffer,
 			SSL_send_message_size, on_io_send_complete, IO_SEND_COMPLETE_CONTEXT);
 
@@ -581,6 +588,7 @@ BEGIN_TEST_SUITE(tlsio_openssl_compact_unittests)
 
 		for (unsigned int i = 0; i < umock_c_negative_tests_call_count(); i++)
 		{
+			///arrange
 			const IO_INTERFACE_DESCRIPTION* tlsio_id = tlsio_openssl_compact_get_interface_description();
 			CONCRETE_IO_HANDLE tlsio = tlsio_id->concrete_io_create(&good_config);
 			open_helper(tlsio_id, tlsio);
@@ -590,6 +598,7 @@ BEGIN_TEST_SUITE(tlsio_openssl_compact_unittests)
 
 			umock_c_negative_tests_reset();
 			umock_c_negative_tests_fail_call(i);
+			TLSIO_ASSERT_INTERNAL_STATE(tlsio, TLSIO_STATE_EXT_OPEN, 0);
 
 			///act
 			int send_result = tlsio_id->concrete_io_send(tlsio, SSL_send_buffer,
@@ -664,6 +673,7 @@ BEGIN_TEST_SUITE(tlsio_openssl_compact_unittests)
 		const IO_INTERFACE_DESCRIPTION* tlsio_id = tlsio_openssl_compact_get_interface_description();
 		CONCRETE_IO_HANDLE tlsio = tlsio_id->concrete_io_create(&good_config);
 		reset_callback_context_records();
+		TLSIO_ASSERT_INTERNAL_STATE(tlsio, TLSIO_STATE_EXT_CLOSED, 0);
 
 		///act
 		int send_result = tlsio_id->concrete_io_send(tlsio, SSL_send_buffer,
@@ -738,6 +748,7 @@ BEGIN_TEST_SUITE(tlsio_openssl_compact_unittests)
         STRICT_EXPECTED_CALL(gballoc_free(IGNORED_NUM_ARG));
         STRICT_EXPECTED_CALL(gballoc_free(IGNORED_NUM_ARG));
         STRICT_EXPECTED_CALL(gballoc_free(IGNORED_NUM_ARG));
+		TLSIO_ASSERT_INTERNAL_STATE(tlsio, TLSIO_STATE_EXT_OPEN, 1);
 
         ///act
         tlsio_id->concrete_io_dowork(tlsio);
@@ -820,6 +831,7 @@ BEGIN_TEST_SUITE(tlsio_openssl_compact_unittests)
         STRICT_EXPECTED_CALL(gballoc_free(IGNORED_NUM_ARG));
         STRICT_EXPECTED_CALL(gballoc_free(IGNORED_NUM_ARG));
         tlsio_id->concrete_io_dowork(tlsio);
+		TLSIO_ASSERT_INTERNAL_STATE(tlsio, TLSIO_STATE_EXT_OPEN, 1);
 
         ///act
         tlsio_id->concrete_io_dowork(tlsio);
@@ -856,6 +868,7 @@ BEGIN_TEST_SUITE(tlsio_openssl_compact_unittests)
         STRICT_EXPECTED_CALL(gballoc_free(IGNORED_NUM_ARG));
         STRICT_EXPECTED_CALL(gballoc_free(IGNORED_NUM_ARG));
         STRICT_EXPECTED_CALL(gballoc_free(IGNORED_NUM_ARG));
+		TLSIO_ASSERT_INTERNAL_STATE(tlsio, TLSIO_STATE_EXT_OPEN, 1);
 
         ///act
         tlsio_id->concrete_io_dowork(tlsio);
@@ -884,10 +897,10 @@ BEGIN_TEST_SUITE(tlsio_openssl_compact_unittests)
 
         // We do expect an empty read when we call dowork
         STRICT_EXPECTED_CALL(SSL_read(SSL_Good_Ptr, IGNORED_PTR_ARG, IGNORED_NUM_ARG)).SetReturn(0);
+		TLSIO_ASSERT_INTERNAL_STATE(tlsio, TLSIO_STATE_EXT_OPEN, 0);
 
         ///act
         tlsio_id->concrete_io_dowork(tlsio);
-        //
 
         ///assert
         // Verify we got no callback for 0 messages
@@ -913,10 +926,10 @@ BEGIN_TEST_SUITE(tlsio_openssl_compact_unittests)
         umock_c_reset_all_calls();
 
         STRICT_EXPECTED_CALL(SSL_read(SSL_Good_Ptr, IGNORED_PTR_ARG, IGNORED_NUM_ARG)).SetReturn(0);
+		TLSIO_ASSERT_INTERNAL_STATE(tlsio, TLSIO_STATE_EXT_OPEN, 0);
 
         ///act
         tlsio_id->concrete_io_dowork(tlsio); // dowork_poll_dns (done)
-        //
 
         ///assert
         // Verify we got no callback for 0 bytes
@@ -943,10 +956,10 @@ BEGIN_TEST_SUITE(tlsio_openssl_compact_unittests)
         umock_c_reset_all_calls();
 
         STRICT_EXPECTED_CALL(SSL_read(SSL_Good_Ptr, IGNORED_PTR_ARG, IGNORED_NUM_ARG));
+		TLSIO_ASSERT_INTERNAL_STATE(tlsio, TLSIO_STATE_EXT_OPEN, 0);
 
         ///act
         tlsio_id->concrete_io_dowork(tlsio); // dowork_poll_dns (done)
-        //
 
         ///assert
         // Verify we got the bytes and their callback context
@@ -985,6 +998,7 @@ BEGIN_TEST_SUITE(tlsio_openssl_compact_unittests)
 
         reset_callback_context_records();
         umock_c_reset_all_calls();
+		TLSIO_ASSERT_INTERNAL_STATE(tlsio, TLSIO_STATE_EXT_CLOSED, 0);
 
         ///act
         tlsio_id->concrete_io_dowork(tlsio); // dowork_poll_dns (done)
@@ -1054,7 +1068,8 @@ BEGIN_TEST_SUITE(tlsio_openssl_compact_unittests)
             umock_c_reset_all_calls();
 
             umock_c_negative_tests_reset();
-            if (fails[i])
+			TLSIO_ASSERT_INTERNAL_STATE(tlsio, TLSIO_STATE_EXT_OPENING, 0);
+			if (fails[i])
             {
                 umock_c_negative_tests_fail_call(i);
             }
@@ -1134,10 +1149,10 @@ BEGIN_TEST_SUITE(tlsio_openssl_compact_unittests)
         tlsio_id->concrete_io_dowork(tlsio); // dowork_poll_socket (done)
         tlsio_id->concrete_io_dowork(tlsio); // dowork_poll_open_ssl (waiting SSL_ERROR_WANT_READ)
         tlsio_id->concrete_io_dowork(tlsio); // dowork_poll_open_ssl (waiting SSL_ERROR_WANT_WRITE)
+		TLSIO_ASSERT_INTERNAL_STATE(tlsio, TLSIO_STATE_EXT_OPENING, 0);
 
         ///act
         tlsio_id->concrete_io_dowork(tlsio); // dowork_poll_open_ssl (done)
-        //
 
         ///assert
         // Check that we got the on_open callback
@@ -1159,6 +1174,7 @@ BEGIN_TEST_SUITE(tlsio_openssl_compact_unittests)
         CONCRETE_IO_HANDLE tlsio = tlsio_id->concrete_io_create(&good_config);
         umock_c_reset_all_calls();
         reset_callback_context_records();
+		TLSIO_ASSERT_INTERNAL_STATE(tlsio, TLSIO_STATE_EXT_CLOSED, 0);
 
         ///act
         tlsio_id->concrete_io_dowork(tlsio);
@@ -1190,6 +1206,7 @@ BEGIN_TEST_SUITE(tlsio_openssl_compact_unittests)
 	}
 
 	/* Tests_SRS_TLSIO_30_035: [ On tlsio_open success the adapter shall enter TLSIO_STATE_EX_OPENING and return 0. ]*/
+	/* Tests_SRS_TLSIO_30_034: [ The tlsio_open shall store the provided on_bytes_received, on_bytes_received_context, on_io_error, on_io_error_context, on_io_open_complete, and on_io_open_complete_context parameters for later use as specified and tested per other line entries in this document. ]*/
 	TEST_FUNCTION(tlsio_openssl_compact__open__succeeds)
 	{
 		///arrange
@@ -1200,6 +1217,7 @@ BEGIN_TEST_SUITE(tlsio_openssl_compact_unittests)
 
 		STRICT_EXPECTED_CALL(get_time(NULL));
 		STRICT_EXPECTED_CALL(dns_async_create(IGNORED_PTR_ARG, NULL));
+		TLSIO_ASSERT_INTERNAL_STATE(tlsio, TLSIO_STATE_EXT_CLOSED, 0);
 
 		///act
 		int open_result = tlsio_id->concrete_io_open(tlsio, on_io_open_complete, IO_OPEN_COMPLETE_CONTEXT, on_bytes_received,
@@ -1210,6 +1228,7 @@ BEGIN_TEST_SUITE(tlsio_openssl_compact_unittests)
 		// Should not have made any callbacks yet
 		ASSERT_IO_OPEN_CALLBACK(false, IO_OPEN_ERROR);
 		ASSERT_ARE_EQUAL(char_ptr, umock_c_get_expected_calls(), umock_c_get_actual_calls());
+		// Ensure that the callbacks were stored properly in the internal instance
 		TLSIO_ASSERT_INTERNAL_STATE(tlsio, TLSIO_STATE_EXT_OPENING, 0);
 
 		///cleanup
@@ -1229,6 +1248,7 @@ BEGIN_TEST_SUITE(tlsio_openssl_compact_unittests)
 
 		STRICT_EXPECTED_CALL(get_time(NULL));
 		STRICT_EXPECTED_CALL(dns_async_create(IGNORED_PTR_ARG, NULL)).SetReturn(NULL);
+		TLSIO_ASSERT_INTERNAL_STATE(tlsio, TLSIO_STATE_EXT_CLOSED, 0);
 
 		///act
 		int open_result = tlsio_id->concrete_io_open(tlsio, on_io_open_complete, IO_OPEN_COMPLETE_CONTEXT, on_bytes_received,
@@ -1257,6 +1277,7 @@ BEGIN_TEST_SUITE(tlsio_openssl_compact_unittests)
             IO_BYTES_RECEIVED_CONTEXT, on_io_error, IO_ERROR_CONTEXT);
         ASSERT_ARE_EQUAL(int, open_result, 0);
         reset_callback_context_records();
+		TLSIO_ASSERT_INTERNAL_STATE(tlsio, TLSIO_STATE_EXT_OPENING, 0);
 
         ///act
         int open_result_2 = tlsio_id->concrete_io_open(tlsio, on_io_open_complete, IO_OPEN_COMPLETE_CONTEXT, on_bytes_received,
@@ -1301,6 +1322,7 @@ BEGIN_TEST_SUITE(tlsio_openssl_compact_unittests)
             ///arrange
             reset_callback_context_records();
             CONCRETE_IO_HANDLE tlsio = tlsio_id->concrete_io_create(&good_config);
+			TLSIO_ASSERT_INTERNAL_STATE(tlsio, TLSIO_STATE_EXT_CLOSED, 0);
 
             ///act
             int open_result = tlsio_id->concrete_io_open(p0[i] ? tlsio : NULL, p1[i], IO_OPEN_COMPLETE_CONTEXT, p2[i],
@@ -1317,7 +1339,7 @@ BEGIN_TEST_SUITE(tlsio_openssl_compact_unittests)
 		assert_gballoc_checks();
 	}
 
-    /* Tests_SRS_TLSIO_30_123 [ The tlsio_openssl_compact_setoption shall do nothing and return 0. ]*/
+    /* Tests_SRS_TLSIO_OPENSSL_COMPACT_30_520 [ The  tlsio_setoption  shall do nothing and return 0. ]*/
     TEST_FUNCTION(tlsio_openssl_compact__setoption__succeeds)
     {
         ///arrange
@@ -1325,6 +1347,7 @@ BEGIN_TEST_SUITE(tlsio_openssl_compact_unittests)
         CONCRETE_IO_HANDLE tlsio = tlsio_id->concrete_io_create(&good_config);
         ASSERT_IS_NOT_NULL(tlsio);
         umock_c_reset_all_calls();
+		TLSIO_ASSERT_INTERNAL_STATE(tlsio, TLSIO_STATE_EXT_CLOSED, 0);
 
         ///act
         int result = tlsio_id->concrete_io_setoption(tlsio, "fake name", "fake value");
@@ -1365,6 +1388,7 @@ BEGIN_TEST_SUITE(tlsio_openssl_compact_unittests)
             ///arrange
             CONCRETE_IO_HANDLE tlsio = tlsio_id->concrete_io_create(&good_config);
             ASSERT_IS_NOT_NULL(tlsio);
+			TLSIO_ASSERT_INTERNAL_STATE(tlsio, TLSIO_STATE_EXT_CLOSED, 0);
 
             ///act
             int result = tlsio_id->concrete_io_setoption(p0[i] ? tlsio : NULL, p1[i], p2[i]);
@@ -1395,7 +1419,7 @@ BEGIN_TEST_SUITE(tlsio_openssl_compact_unittests)
 		assert_gballoc_checks();
 	}
 
-    /* Tests_SRS_TLSIO_30_161: [ The tlsio_openssl_compact_retrieveoptions shall do nothing and return NULL. ]*/
+    /* Tests_SRS_TLSIO_OPENSSL_COMPACT_30_560: [ The  tlsio_retrieveoptions  shall do nothing and return NULL. ]*/
     TEST_FUNCTION(tlsio_openssl_compact__retrieveoptions__fails)
     {
         ///arrange
@@ -1403,6 +1427,7 @@ BEGIN_TEST_SUITE(tlsio_openssl_compact_unittests)
         CONCRETE_IO_HANDLE tlsio = tlsio_id->concrete_io_create(&good_config);
         ASSERT_IS_NOT_NULL(tlsio);
         umock_c_reset_all_calls();
+		TLSIO_ASSERT_INTERNAL_STATE(tlsio, TLSIO_STATE_EXT_CLOSED, 0);
 
         ///act
         OPTIONHANDLER_HANDLE result = tlsio_id->concrete_io_retrieveoptions(tlsio);
@@ -1473,8 +1498,9 @@ BEGIN_TEST_SUITE(tlsio_openssl_compact_unittests)
 	}
 
     /* Tests_SRS_TLSIO_30_010: [ The tlsio_create shall allocate and initialize all necessary resources and return an instance of the tlsio_openssl_compact. ]*/
-    /* Tests_SRS_TLSIO_30_016: [ tlsio_create shall make a copy of the hostname member of io_create_parameters to allow deletion of hostname immediately after the call. ]*/
-    TEST_FUNCTION(tlsio_openssl_compact__create__succeeds)
+	/* Tests_SRS_TLSIO_30_016: [ tlsio_create shall make a copy of the hostname member of io_create_parameters to allow deletion of hostname immediately after the call. ]*/
+	/* Tests_SRS_TLSIO_30_012: [ The tlsio_create shall receive the connection configuration as a TLSIO_CONFIG* in io_create_parameters. ]*/
+	TEST_FUNCTION(tlsio_openssl_compact__create__succeeds)
     {
         ///arrange
         const IO_INTERFACE_DESCRIPTION* tlsio_id = tlsio_openssl_compact_get_interface_description();
@@ -1535,6 +1561,7 @@ BEGIN_TEST_SUITE(tlsio_openssl_compact_unittests)
 		STRICT_EXPECTED_CALL(gballoc_free(IGNORED_PTR_ARG));
 		STRICT_EXPECTED_CALL(gballoc_free(IGNORED_PTR_ARG));
 		STRICT_EXPECTED_CALL(gballoc_free(IGNORED_PTR_ARG));
+		TLSIO_ASSERT_INTERNAL_STATE(tlsio, TLSIO_STATE_EXT_OPEN, 2);
 		// End of arrange
 
 		///act
@@ -1577,6 +1604,7 @@ BEGIN_TEST_SUITE(tlsio_openssl_compact_unittests)
         STRICT_EXPECTED_CALL(gballoc_free(IGNORED_NUM_ARG));  // copy hostname
         STRICT_EXPECTED_CALL(gballoc_free(IGNORED_NUM_ARG));  // singlylinkedlist_create
         STRICT_EXPECTED_CALL(gballoc_free(IGNORED_NUM_ARG));  // concrete_io struct
+		TLSIO_ASSERT_INTERNAL_STATE(result, TLSIO_STATE_EXT_CLOSED, 0);
 
         ///act
         tlsio_id->concrete_io_destroy(result);

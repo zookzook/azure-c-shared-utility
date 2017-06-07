@@ -19,6 +19,21 @@ The tlsio_openssl_compact adapter conforms to the
 additionally implements the [Unit Testing API](Unit-Testing-API) below.
 
 
+## API Calls
+
+
+###   tlsio_setoption
+
+**SRS_TLSIO_OPENSSL_COMPACT_30_520 [** The `tlsio_setoption` shall do nothing and return 0. **]**
+
+
+###   tlsio_retrieveoptions
+
+**SRS_TLSIO_OPENSSL_COMPACT_30_560: [** The `tlsio_retrieveoptions` shall do nothing and return NULL. **]**
+
+
+
+
 ## Unit Testing API
 
 The unit testing API allows verification of internal tlsio adapter states without violating the principle of encapsulation.
