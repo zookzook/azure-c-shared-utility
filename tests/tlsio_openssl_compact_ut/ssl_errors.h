@@ -94,7 +94,7 @@ int my_SSL_write(SSL* ssl, uint8_t* buffer, size_t size)
         }
         else
         {
-            result = size;
+            result = (int)size;
         }
     }
     return result;
