@@ -107,7 +107,7 @@ The external state of the tlsio adapter is determined by which of the adapter's 
   * `on_io_error` has been called from `tlsio_dowork`
 
 ## State Transitions
-This list shows the effect of the calls as a function of state with happy internal functionality. Unhappy functionality is not shown but usually ends in TLSIO_STATE_EXT_ERROR. The `tlsio_setoption` and `tlsio_getoptions` calls are not shown because they have no effect on state and are always allowed. Calls to `tlsio_send_async` also do not affect state, and are allowed only during TLSIO_STATE_EXT_OPEN.
+This list shows the effect of the calls as a function of state with happy internal functionality. Unhappy functionality is not shown. The `tlsio_setoption` and `tlsio_getoptions` calls are not shown because they have no effect on state and are always allowed. Calls to `tlsio_send_async` also do not affect state, and are allowed only during TLSIO_STATE_EXT_OPEN.
 
 <table>
   <tr>From state <b>TLSIO_STATE_EXT_CLOSED</b></tr>
@@ -247,9 +247,10 @@ but shall not alter its internal state. Usage errors include:
 * The behavior of existing tlsio adapters is not consistent in this regard. For example, tlsio_arduino does change state on usage errors but tlsio_open_ssl, tlsio_mbedtls, tlsio_schannel, and tlsio_wolfssl do not. Fortunately the upper-level modules that use tlsio adapters do not perform improper usage, so they don't depend on improper usage acting in any particular way.
 * The tlsio adapter must handle and announce usage errors sensibly. But it is not possible to anticipate whether entering TLSIO_STATE_EXT_ERROR would aid the troubleshooting process or impede it, so the tlsio adapter shall favor design simplicity rather than getting its internal knickers in a knot by changing state when usage errors occur.
 
-**Failed `tlsio_send_async` calls policy**: If the `tlsio_send_async` operation fails, the tlsio adapter shall log an error, return failure, and call the message's callback appropriately, but the adapter shall not change its internal state.<br/>**Reason for failed `tlsio_send_async` policy**: Tlsio adapters which conform to this spec enqueue incoming messages rather than sending them directly, so the only possible errors are usage errors and out-of-memory errors. Neither of these situations calls for the tlsio adapter to change its state, so it won't.
+**Failed `tlsio_send_async` calls policy**: If the `tlsio_send_async` operation fails, the tlsio adapter shall log an error and return failure, but the adapter shall not change its internal state.<br/>**Reason for failed `tlsio_send_async` policy**: Tlsio adapters which conform to this spec enqueue incoming messages rather than sending them directly, so the only possible errors are usage errors and out-of-memory errors. Neither of these situations calls for the tlsio adapter to change its state, so it won't.
 
-**Zero-length messages policy**: The `tlsio_send_async` call will not accept zero-length messages.<br/>**Reason for zero-length messages policy**: This behavior matches that of existing tlsio adapters.
+**Zero-length messages policy**: The `tlsio_send_async` call will not accept zero-length messages.<br/>
+**Reason for zero-length messages policy**: This behavior matches that of existing tlsio adapters.
 
 **Mandatory callbacks policy**: All of the callback functions in the tlsio adapter API are mandatory.<br/>
 **Reasons for mandatory callbacks policy**: 

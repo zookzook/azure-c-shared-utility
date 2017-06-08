@@ -4,6 +4,9 @@
 // This file is made an integral part of tlsio_openssl_compact.c with a #include. It
 // is broken out for readability. 
 
+#ifndef SSL_ERRORS_H
+#define SSL_ERRORS_H
+
 // 
 #define SSL_ERROR__plus__WANT_READ -2
 #define SSL_ERROR__plus__WANT_WRITE -3
@@ -63,7 +66,7 @@ static int my_SSL_get_error(SSL* ssl, int callReturn)
 int my_SSL_read(SSL* ssl, uint8_t* buffer, size_t size)
 {
     size;
-    ASSERT_ARE_EQUAL(int, (int)ssl, (int)SSL_Good_Ptr);
+    ASSERT_ARE_EQUAL(int64_t, (int64_t)ssl, (int64_t)SSL_Good_Ptr);
     ASSERT_ARE_EQUAL(size_t, DOWORK_RECV_XFER_BUFFER_SIZE, sizeof(SSL_TEST_MESSAGE) - 1);
     for (int i = 0; i < DOWORK_RECV_XFER_BUFFER_SIZE; i++)
     {
@@ -76,7 +79,7 @@ int my_SSL_write(SSL* ssl, uint8_t* buffer, size_t size)
 {
     // "Send" no more than SSL_WRITE_MAX_TEST_SIZE bytes
     (void)buffer; // not used
-    ASSERT_ARE_EQUAL(int, (int)ssl, (int)SSL_Good_Ptr);
+    ASSERT_ARE_EQUAL(int64_t, (int64_t)ssl, (int64_t)SSL_Good_Ptr);
     int result;
     if (size == SSL_FAIL_ME_MESSAGE_SIZE)
     {
@@ -95,3 +98,5 @@ int my_SSL_write(SSL* ssl, uint8_t* buffer, size_t size)
     }
     return result;
 }
+
+#endif // SSL_ERRORS_H

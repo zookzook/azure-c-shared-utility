@@ -226,14 +226,12 @@ static void tlsio_openssl_destroy(CONCRETE_IO_HANDLE tls_io)
 		if (tls_io_instance->hostname != NULL)
 		{
 			free(tls_io_instance->hostname);
-			tls_io_instance->hostname = NULL;
 		}
 
 		if (tls_io_instance->pending_transmission_list != NULL)
 		{
 			/* Pending messages were cleared in internal_close */
 			singlylinkedlist_destroy(tls_io_instance->pending_transmission_list);
-			tls_io_instance->pending_transmission_list = NULL;
 		}
 
 		free(tls_io_instance);
