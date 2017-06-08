@@ -16,7 +16,7 @@ The tlsio_openssl_compact adapter implements a tlsio adapter for compact OpenSSL
 
 The tlsio_openssl_compact adapter conforms to the
 [tlsio base specification](https://github.com/Azure/azure-c-shared-utility/blob/master/devdoc/tlsio.md) and 
-additionally implements the [Unit Testing API](Unit-Testing-API) below.
+additionally implements the [Unit Testing API](#Unit-Testing-API) below.
 
 
 ## API Calls
