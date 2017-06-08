@@ -67,7 +67,7 @@ int my_SSL_read(SSL* ssl, uint8_t* buffer, size_t size)
 {
     (void)size;
     ASSERT_ARE_EQUAL(size_t, DOWORK_RECV_XFER_BUFFER_SIZE, size);
-    ASSERT_ARE_EQUAL(int64_t, (int64_t)ssl, (int64_t)SSL_Good_Ptr);
+    ASSERT_ARE_EQUAL(size_t, (int64_t)ssl, (size_t)SSL_Good_Ptr);
     ASSERT_ARE_EQUAL(size_t, DOWORK_RECV_XFER_BUFFER_SIZE, sizeof(SSL_TEST_MESSAGE) - 1);
     for (int i = 0; i < DOWORK_RECV_XFER_BUFFER_SIZE; i++)
     {
@@ -80,7 +80,7 @@ int my_SSL_write(SSL* ssl, uint8_t* buffer, size_t size)
 {
     // "Send" no more than SSL_WRITE_MAX_TEST_SIZE bytes
     (void)buffer; // not used
-    ASSERT_ARE_EQUAL(int64_t, (int64_t)ssl, (int64_t)SSL_Good_Ptr);
+    ASSERT_ARE_EQUAL(size_t, (size_t)ssl, (size_t)SSL_Good_Ptr);
     int result;
     if (size == SSL_FAIL_ME_MESSAGE_SIZE)
     {
