@@ -75,6 +75,7 @@ typedef struct TLS_IO_INSTANCE_TAG
 	SINGLYLINKEDLIST_HANDLE pending_transmission_list;
 } TLS_IO_INSTANCE;
 
+/* Codes_SRS_TLSIO_30_005: [ The phrase "enter TLSIO_STATE_EXT_ERROR" means the adapter shall call the on_io_error function and pass the on_io_error_context that was supplied in tlsio_open_async. ]*/
 static void enter_tlsio_error_state(TLS_IO_INSTANCE* tls_io_instance)
 {
 	if (tls_io_instance->tlsio_state != TLSIO_STATE_ERROR)
@@ -84,11 +85,11 @@ static void enter_tlsio_error_state(TLS_IO_INSTANCE* tls_io_instance)
 	}
 }
 
+/* Codes_SRS_TLSIO_30_005: [ When the adapter enters TLSIO_STATE_EXT_ERROR it shall call the  on_io_error function and pass the on_io_error_context that were supplied in  tlsio_open . ]*/
 static void enter_open_error_state(TLS_IO_INSTANCE* tls_io_instance)
 {
 	enter_tlsio_error_state(tls_io_instance);
 	// on_open_complete has already been checked for non-NULL
-	/* Codes_SRS_TLSIO_30_005: [ When the adapter enters TLSIO_STATE_EXT_ERROR it shall call the  on_io_error function and pass the on_io_error_context that were supplied in  tlsio_open . ]*/
 	tls_io_instance->on_open_complete(tls_io_instance->on_open_complete_context, IO_OPEN_ERROR);
 }
 
@@ -142,7 +143,9 @@ static void check_for_open_timeout(TLS_IO_INSTANCE* tls_io_instance)
 
 static void internal_close(TLS_IO_INSTANCE* tls_io_instance)
 {
-	/* Codes_SRS_TLSIO_30_051: [ The tlsio_openssl_compact_close shall forcibly close any existing ssl connection. ]*/
+	/* Codes_SRS_TLSIO_30_009: [ The phrase "enter TLSIO_STATE_EXT_CLOSING" means the adapter shall iterate through any unsent messages in the queue and shall delete each message after calling its on_send_complete with the associated callback_context and IO_SEND_CANCELLED. ]*/
+	/* Codes_SRS_TLSIO_30_006: [ The phrase "enter TLSIO_STATE_EXT_CLOSED" means the adapter shall forcibly close any existing connections then call the on_io_close_complete function and pass the on_io_close_complete_context that was supplied in tlsio_close_async. ]*/
+	/* Codes_SRS_TLSIO_30_051: [ On success, if the underlying TLS does not support asynchronous closing, then the adapter shall enter TLSIO_STATE_EXT_CLOSED immediately after entering TLSIO_STATE_EX_CLOSING. ]*/
 	if (tls_io_instance->tlsio_state == TLSIO_STATE_OPEN)
 	{
 		// From the OpenSSL manual pages: "According to the TLS standard, it is acceptable 
@@ -179,7 +182,6 @@ static void internal_close(TLS_IO_INSTANCE* tls_io_instance)
 		tls_io_instance->sock = -1;
 	}
 
-	/* Codes_SRS_TLSIO_30_056: [ If tlsio_openssl_compact_close is called while there are unsent messages in the queue, the tlsio_openssl_compact_close shall call each message's on_send_complete, passing its associated callback_context and IO_SEND_CANCELLED. ]*/
 	while (process_and_destroy_head_message(tls_io_instance, IO_SEND_CANCELLED));
 	// singlylinkedlist_destroy gets called in the main destroy
 
