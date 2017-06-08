@@ -735,6 +735,7 @@ BEGIN_TEST_SUITE(tlsio_openssl_compact_unittests)
 	/* Tests_SRS_TLSIO_30_002: [ The phrase "destroy the failed message" means that the adapter shall remove the message from the queue and destroy it after calling the message's on_send_complete along with its associated callback_context and IO_SEND_ERROR. ]*/
 	/* Tests_SRS_TLSIO_30_005: [ When the adapter enters TLSIO_STATE_EXT_ERROR it shall call the  on_io_error function and pass the on_io_error_context that were supplied in  tlsio_open . ]*/
 	/* Tests_SRS_TLSIO_30_092: [ If the send process for any given message takes longer than the internally defined TLSIO_OPERATION_TIMEOUT_SECONDS it shall destroy the failed message and enter TLSIO_STATE_EX_ERROR. ]*/
+	/* Tests_SRS_TLSIO_30_003: [ Tlsio adapter implementations shall define and observe the internally defined TLSIO_OPERATION_TIMEOUT_SECONDS timeout value for opening, closing, and sending processes. ]*/
 	TEST_FUNCTION(tlsio_openssl_compact__dowork_send_timeout__fails)
     {
         ///arrange
@@ -1023,7 +1024,8 @@ BEGIN_TEST_SUITE(tlsio_openssl_compact_unittests)
 
     /* Tests_SRS_TLSIO_30_082: [ If the connection process fails for any reason, tlsio_dowork shall log an error, call on_io_open_complete with the on_io_open_complete_context parameter provided in tlsio_open and IO_OPEN_ERROR, and enter TLSIO_STATE_EX_ERROR. ]*/
     /* Tests_SRS_TLSIO_30_081: [ If the connection process takes longer than the internally defined TLSIO_OPERATION_TIMEOUT_SECONDS, tlsio_dowork shall log an error, call on_io_open_complete with the on_io_open_complete_context parameter provided in tlsio_open and IO_OPEN_ERROR, and enter TLSIO_STATE_EX_ERROR. ]*/
-    TEST_FUNCTION(tlsio_openssl_compact__dowork_open_unhappy_paths__fails)
+	/* Tests_SRS_TLSIO_30_003: [ Tlsio adapter implementations shall define and observe the internally defined TLSIO_OPERATION_TIMEOUT_SECONDS timeout value for opening, closing, and sending processes. ]*/
+	TEST_FUNCTION(tlsio_openssl_compact__dowork_open_unhappy_paths__fails)
     {
         ///arrange
         use_negative_mocks();
