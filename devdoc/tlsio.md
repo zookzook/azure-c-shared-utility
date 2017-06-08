@@ -221,7 +221,7 @@ but the individual specifications will conform to these decisions.
 decisions that are deliberately deferred to the higher level modules that own the tilso adapter. The tlsio adapter 
 is not competent to make any guesses about what the correct retry behavior should be.
 
-**Unsent messages policy**: the tlsio adapter shall discard any unsent messages when it receives a “close” command.<br/>
+**Unsent messages policy**: the tlsio adapter shall [discard any unsent messages](#destroy-the-failed-message "Remove the message from the queue and destroy it after calling the message's  on_send_complete  along with its associated  callback_context  and  IO_SEND_ERROR ") when it receives a “close” command.<br/>
 **Reasons for unsent messages decision**:
   1. This is consistent with existing tlsio adapters.<br/>
   2. Decisions about which messages should be re-sent after a (possibly lengthy) recovery must be deferred to higher level modules. Discarding all unsent messages upon `tlsio_close_async` puts that responsibility where it belongs.
@@ -233,13 +233,8 @@ tlsio shall only accept messages for transmission when it is in the TLSIO_STATE_
   2. Accepting messages in other states amounts to poorly designed message queuing, and message queuing is already implemented properly at higher levels.
   3. Accepting messages in other states would require non-trivial design and unit test work and force the redesign of higher levels without adding any real functionality.
 
-**No completion callbacks on failure**: If `tlsio_open_async` fails, the tlsio adapter shall call the supplied `on_io_open_complete` 
-callback.<br/>
-**Reason for redundant callback**: The reason for callbacks in the first place is because asynchronous operations cannot 
-always provide all necessary feedback in their return values. In the case of a failed "begin operation" such as tlsio_open_async, 
-the failure return already contains all of the useful information, making the callback redundant. In a greenfield design, 
-simplicity would dictate that the callback not be made, but existing tlsio adapters already make this redundant callback, 
-so new tlsio adpaters must conform to this behavior.
+**No completion callbacks on failure**: If any of the async calls (`tlsio_open_async`, `tlsio_send_async`, and `tlsio_close_async`) fail, the tlsio adapter shall not call the completion callbacks.<br/>
+**Reason for no completion callbacks on failure**: This conforms with the standard async call pattern. Since the caller already knows the call failed, calling completion callbacks is unnecessary.
 
 **Usage error policy**: If the caller commits usage errors, the tlsio adapter shall log the error and return failure, 
 but shall not alter its internal state. Usage errors include:
@@ -268,6 +263,7 @@ but shall not alter its internal state. Usage errors include:
 #### Explicit state transitions
 
 Throughout this document, state transitions only occur as explicitly specified. If no state transition is called out, then none is allowed. (So "do nothing" is always understood as the default.)
+
 #### Specified state transitions
 
 Requirements in this document use the phrase "shall enter TLSIO_STATE_EXT_XXXX" to specify behavior. Here are the definitions of the state transition phrases:
@@ -363,7 +359,7 @@ int tlsio_open_async(
 
 **SRS_TLSIO_30_038: [** If `tlsio_open_async` fails to  [enter TLSIO_STATE_EX_OPENING](#enter-TLSIO_STATE_EXT_OPENING "Continute the process of opening the TSL connection to the host on the next `tlsio_dowork` call") it shall return `_FAILURE_`. **]**
 
-**SRS_TLSIO_30_039: [** On failure, `tlsio_open_async` shall call a non-NULL `on_io_open_complete` with the provided `on_io_open_complete_context` and IO_OPEN_ERROR. **]**
+**SRS_TLSIO_30_039: [** On failure, `tlsio_open_async` shall not call `on_io_open_complete`. **]**
 
 **SRS_TLSIO_30_034: [** On success, `tlsio_open_async` shall store the provided `on_bytes_received`,  `on_bytes_received_context`, `on_io_error`, `on_io_error_context`, `on_io_open_complete`,  and `on_io_open_complete_context` parameters for later use as specified and tested per other line entries in this document. **]**
 
@@ -382,11 +378,13 @@ int tlsio_close_async(CONCRETE_IO_HANDLE tlsio_handle, ON_IO_CLOSE_COMPLETE on_i
 
 **SRS_TLSIO_30_053: [** If the adapter is in any state other than TLSIO_STATE_EXT_OPEN or TLSIO_STATE_EXT_ERROR then `tlsio_close_async` shall log an error and return `_FAILURE_`. **]**
 
+**SRS_TLSIO_30_054: [** On failure, the adapter shall not call `on_io_close_complete`. **]**
+
 **SRS_TLSIO_30_056: [** On success the adapter shall [enter TLSIO_STATE_EX_CLOSING](#enter-TLSIO_STATE_EXT_CLOSING "Iterate through any unsent messages in the queue and delete each message after calling its `on_send_complete` with the associated `callback_context` and `IO_SEND_CANCELLED`."). **]**
 
 **SRS_TLSIO_30_051: [** On success, if the underlying TLS does not support asynchronous closing, then the adapter shall [enter TLSIO_STATE_EXT_CLOSED](#enter-TLSIO_STATE_EXT_CLOSED "Forcibly close any existing connections then call the `on_io_close_complete` function and pass the `on_io_close_complete_context` that was supplied in `tlsio_close_async`.") immediately after entering TLSIO_STATE_EX_CLOSING. **]**
 
-**SRS_TLSIO_30_052: [** On success`tlsio_close_async` shall return 0. **]**
+**SRS_TLSIO_30_052: [** On success `tlsio_close_async` shall return 0. **]**
 
 
 ###   tlsio_send_async
@@ -407,7 +405,7 @@ int tlsio_send_async(CONCRETE_IO_HANDLE tlsio_handle, const void* buffer, size_t
 
 **SRS_TLSIO_30_064: [** If the supplied message cannot be enqueued for transmission, `tlsio_send_async` shall return `_FAILURE_`. **]**
 
-**SRS_TLSIO_30_066: [** On failure, a non-NULL `on_send_complete` shall be called with `callback_context` and IO_SEND_ERROR. **]**
+**SRS_TLSIO_30_066: [** On failure, `on_send_complete` shall not be called. **]**
 
 **SRS_TLSIO_30_063: [** On success, `tlsio_send_async` shall enqueue for transmission the `on_send_complete`, the `callback_context`, the `size`, and the contents of `buffer` and then return 0. **]**
 

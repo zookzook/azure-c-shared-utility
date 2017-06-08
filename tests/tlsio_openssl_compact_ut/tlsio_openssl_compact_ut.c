@@ -315,6 +315,7 @@ BEGIN_TEST_SUITE(tlsio_openssl_compact_unittests)
 
     /* Tests_SRS_TLSIO_30_050: [ If the tlsio_handle parameter is NULL, tlsio_close shall log an error and return FAILURE. ]*/
     /* Tests_SRS_TLSIO_30_055: [ If the on_io_close_complete parameter is NULL, tlsio_close shall log an error and return FAILURE. ]*/
+    /* Tests_SRS_TLSIO_30_054: [ On failure, the adapter shall not call on_io_close_complete. ]*/
     TEST_FUNCTION(tlsio_openssl_compact__close_parameter_validation__fails)
     {
         ///arrange
@@ -334,6 +335,7 @@ BEGIN_TEST_SUITE(tlsio_openssl_compact_unittests)
         // Cycle through each failing combo of parameters
         for (int i = 0; i < CLOSE_PV_COUNT; i++)
         {
+            reset_callback_context_records();
             ///arrange
 
             ///act
@@ -342,6 +344,7 @@ BEGIN_TEST_SUITE(tlsio_openssl_compact_unittests)
             ///assert
 			TLSIO_ASSERT_INTERNAL_STATE(tlsio, TLSIO_STATE_EXT_CLOSED, 0);
             ASSERT_ARE_NOT_EQUAL_WITH_MSG(int, 0, close_result, fm[i]);
+            ASSERT_IO_CLOSE_CALLBACK(false);
         }
 
         ///cleanup
@@ -403,6 +406,7 @@ BEGIN_TEST_SUITE(tlsio_openssl_compact_unittests)
 	}
 
     /* Tests_SRS_TLSIO_30_053: [ If the adapter is in any state other than TLSIO_STATE_EXT_OPEN or TLSIO_STATE_EXT_ERROR  tlsio_close  shall log an error and return FAILURE. ]*/
+    /* Tests_SRS_TLSIO_30_054: [ On failure, the adapter shall not call on_io_close_complete. ]*/
     // For this case, tlsio_openssl_compact_open has not been called previously
     TEST_FUNCTION(tlsio_openssl_compact__close_unopened__fails)
     {
@@ -468,6 +472,7 @@ BEGIN_TEST_SUITE(tlsio_openssl_compact_unittests)
 	}
 
     /* Tests_SRS_TLSIO_30_053: [ If the adapter is in any state other than TLSIO_STATE_EXT_OPEN or TLSIO_STATE_EXT_ERROR tlsio_close shall log an error and return FAILURE. ]*/
+    /* Tests_SRS_TLSIO_30_054: [ On failure, the adapter shall not call on_io_close_complete. ]*/
     TEST_FUNCTION(tlsio_openssl_compact__close_while_opening__fails)
     {
         ///arrange
@@ -575,7 +580,7 @@ BEGIN_TEST_SUITE(tlsio_openssl_compact_unittests)
 	}
 
 	/* Tests_SRS_TLSIO_30_064: [ If the supplied message cannot be enqueued for transmission, tlsio_openssl_compact_send shall return FAILURE. ]*/
-	/* Tests_SRS_TLSIO_30_066: [ On failure, a non-NULL on_send_complete shall be called with callback_context and IO_SEND_ERROR. ]*/
+	/* Tests_SRS_TLSIO_30_066: [ On failure, on_send_complete shall not be called. ]*/
 	TEST_FUNCTION(tlsio_openssl_compact__send_unhappy_paths__fails)
 	{
 		///arrange
@@ -607,6 +612,7 @@ BEGIN_TEST_SUITE(tlsio_openssl_compact_unittests)
 			///assert
 			ASSERT_ARE_NOT_EQUAL_WITH_MSG(int, send_result, 0, "Unexpected send success on unhappy path");
 			TLSIO_ASSERT_INTERNAL_STATE(tlsio, TLSIO_STATE_EXT_OPEN, 0);
+            ASSERT_IO_SEND_CALLBACK(false, IO_SEND_ERROR);
 
 			///cleanup
 			tlsio_id->concrete_io_close(tlsio, on_io_close_complete, NULL);
@@ -621,8 +627,8 @@ BEGIN_TEST_SUITE(tlsio_openssl_compact_unittests)
 	/* Tests_SRS_TLSIO_30_061: [ If the buffer is NULL, tlsio_openssl_compact_send shall log the error and return FAILURE. ]*/
 	/* Tests_SRS_TLSIO_30_062: [ If the on_send_complete is NULL, tlsio_openssl_compact_send shall log the error and return FAILURE. ]*/
 	/* Tests_SRS_TLSIO_30_067: [ If the  size  is 0,  tlsio_send  shall log the error and return FAILURE. ]*/
-	/* Tests_SRS_TLSIO_30_066: [ On failure, a non-NULL on_send_complete shall be called with callback_context and IO_SEND_ERROR. ]*/
-	TEST_FUNCTION(tlsio_openssl_compact__send_parameter_validation__fails)
+    /* Tests_SRS_TLSIO_30_066: [ On failure, on_send_complete shall not be called. ]*/
+    TEST_FUNCTION(tlsio_openssl_compact__send_parameter_validation__fails)
 	{
 		///arrange
 		const IO_INTERFACE_DESCRIPTION* tlsio_id = tlsio_openssl_compact_get_interface_description();
@@ -653,7 +659,7 @@ BEGIN_TEST_SUITE(tlsio_openssl_compact_unittests)
 
 			///assert
 			ASSERT_ARE_NOT_EQUAL_WITH_MSG(int, send_result, 0, fm[i]);
-			ASSERT_IO_SEND_CALLBACK(p3[i] != NULL, IO_SEND_ERROR);
+			ASSERT_IO_SEND_CALLBACK(false, IO_SEND_ERROR);
 			TLSIO_ASSERT_INTERNAL_STATE(tlsio, TLSIO_STATE_EXT_OPEN, 0);
 
 			///cleanup
@@ -666,8 +672,8 @@ BEGIN_TEST_SUITE(tlsio_openssl_compact_unittests)
 	}
 
 	/* Tests_SRS_TLSIO_30_065: [ If tlsio_openssl_compact_open has not been called or the opening process has not been completed, tlsio_openssl_compact_send shall log an error and return FAILURE. ]*/
-	/* Tests_SRS_TLSIO_30_066: [ On failure, a non-NULL on_send_complete shall be called with callback_context and IO_SEND_ERROR. ]*/
-	TEST_FUNCTION(tlsio_openssl_compact__send_not_open__fails)
+    /* Tests_SRS_TLSIO_30_066: [ On failure, on_send_complete shall not be called. ]*/
+    TEST_FUNCTION(tlsio_openssl_compact__send_not_open__fails)
 	{
 		///arrange
 		const IO_INTERFACE_DESCRIPTION* tlsio_id = tlsio_openssl_compact_get_interface_description();
@@ -681,7 +687,7 @@ BEGIN_TEST_SUITE(tlsio_openssl_compact_unittests)
 
 		///assert
 		ASSERT_ARE_NOT_EQUAL_WITH_MSG(int, send_result, 0, "Unexpected success in sending from wrong state");
-		ASSERT_IO_SEND_CALLBACK(true, IO_SEND_ERROR);
+		ASSERT_IO_SEND_CALLBACK(false, IO_SEND_ERROR);
 		TLSIO_ASSERT_INTERNAL_STATE(tlsio, TLSIO_STATE_EXT_CLOSED, 0);
 
 		///cleanup
@@ -1237,7 +1243,7 @@ BEGIN_TEST_SUITE(tlsio_openssl_compact_unittests)
 	}
 
 	/* Tests_SRS_TLSIO_30_038: [ If  tlsio_open  fails to enter TLSIO_STATE_EX_OPENING it shall return FAILURE. ]*/
-	/* Tests_SRS_TLSIO_30_039: [If the tlsio_open returns FAILURE it shall call on_io_open_complete with the provided on_io_open_complete_context and IO_OPEN_ERROR.]*/
+	/* Tests_SRS_TLSIO_30_039: [ On failure, tlsio_open_async shall not call on_io_open_complete. ]*/
 	TEST_FUNCTION(tlsio_openssl_compact__open_unhappy_path__fails)
 	{
 		///arrange
@@ -1256,8 +1262,8 @@ BEGIN_TEST_SUITE(tlsio_openssl_compact_unittests)
 
 		///assert
 		ASSERT_ARE_NOT_EQUAL(int, open_result, 0);
-		// Should get a failure callback
-		ASSERT_IO_OPEN_CALLBACK(true, IO_OPEN_ERROR);
+		// Should not get a callback
+		ASSERT_IO_OPEN_CALLBACK(false, IO_OPEN_ERROR);
 		ASSERT_ARE_EQUAL(char_ptr, umock_c_get_expected_calls(), umock_c_get_actual_calls());
 		TLSIO_ASSERT_INTERNAL_STATE(tlsio, TLSIO_STATE_EXT_CLOSED, 0);
 
@@ -1267,8 +1273,8 @@ BEGIN_TEST_SUITE(tlsio_openssl_compact_unittests)
 	}
 
     /* Tests_SRS_TLSIO_30_037: [ If the adapter is in any state other than TLSIO_STATE_EXT_CLOSED when tlsio_open is called, it shall log an error, and return FAILURE. ]*/
-	/* Tests_SRS_TLSIO_30_039: [If the tlsio_open returns FAILURE it shall call on_io_open_complete with the provided on_io_open_complete_context and IO_OPEN_ERROR.]*/
-	TEST_FUNCTION(tlsio_openssl_compact__open_wrong_state__fails)
+    /* Tests_SRS_TLSIO_30_039: [ On failure, tlsio_open_async shall not call on_io_open_complete. ]*/
+    TEST_FUNCTION(tlsio_openssl_compact__open_wrong_state__fails)
     {
         ///arrange
         const IO_INTERFACE_DESCRIPTION* tlsio_id = tlsio_openssl_compact_get_interface_description();
@@ -1285,7 +1291,7 @@ BEGIN_TEST_SUITE(tlsio_openssl_compact_unittests)
 
         ///assert
         ASSERT_ARE_NOT_EQUAL_WITH_MSG(int, open_result_2, 0, "Unexpected 2nd open success");
-        ASSERT_IO_OPEN_CALLBACK(true, IO_OPEN_ERROR);
+        ASSERT_IO_OPEN_CALLBACK(false, IO_OPEN_ERROR);
 		TLSIO_ASSERT_INTERNAL_STATE(tlsio, TLSIO_STATE_EXT_OPENING, 0);
 
         ///cleanup
@@ -1297,7 +1303,7 @@ BEGIN_TEST_SUITE(tlsio_openssl_compact_unittests)
     /* Tests_SRS_TLSIO_30_031: [ If the on_io_open_complete parameter is NULL, tlsio_open shall log an error and return FAILURE. ]*/
     /* Tests_SRS_TLSIO_30_032: [ If the on_bytes_received parameter is NULL, tlsio_open shall log an error and return FAILURE. ]*/
     /* Tests_SRS_TLSIO_30_033: [ If the on_io_error parameter is NULL, tlsio_openss_open shall log an error and return FAILURE. ]*/
-    /* Tests_SRS_TLSIO_30_039: [If the tlsio_open returns FAILURE it shall call on_io_open_complete with the provided on_io_open_complete_context and IO_OPEN_ERROR.]*/
+    /* Tests_SRS_TLSIO_30_039: [ On failure, tlsio_open_async shall not call on_io_open_complete. ]*/
     TEST_FUNCTION(tlsio_openssl_compact__open_parameter_validation_fails__fails)
     {
         ///arrange
@@ -1330,7 +1336,7 @@ BEGIN_TEST_SUITE(tlsio_openssl_compact_unittests)
 
             ///assert
             ASSERT_ARE_NOT_EQUAL_WITH_MSG(int, open_result, 0, fm[i]);
-            ASSERT_IO_OPEN_CALLBACK(p1[i] != NULL, IO_OPEN_ERROR);
+            ASSERT_IO_OPEN_CALLBACK(false, IO_OPEN_ERROR);
 			TLSIO_ASSERT_INTERNAL_STATE(tlsio, TLSIO_STATE_EXT_CLOSED, 0);
 
             ///cleanup

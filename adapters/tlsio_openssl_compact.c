@@ -395,25 +395,20 @@ static int tlsio_openssl_open_async(CONCRETE_IO_HANDLE tls_io,
 				}
 			}
 		}
-
-		if (result != 0)
-		{
-			/* Codes_SRS_TLSIO_30_039: [ If the tlsio_open returns FAILURE it shall call on_io_open_complete with the provided on_io_open_complete_context and IO_OPEN_ERROR. ]*/
-			on_io_open_complete(on_io_open_complete_context, IO_OPEN_ERROR);
-		}
+        /* Codes_SRS_TLSIO_30_039: [ On failure, tlsio_open_async shall not call on_io_open_complete. ]*/
 	}
 
 	return result;
 }
 
-
-static int tlsio_openssl_close(CONCRETE_IO_HANDLE tls_io, ON_IO_CLOSE_COMPLETE on_io_close_complete, void* callback_context)
+// This implementation does not have asynchronous close, but uses the _async name for consistencty with the spec
+static int tlsio_openssl_close_async(CONCRETE_IO_HANDLE tls_io, ON_IO_CLOSE_COMPLETE on_io_close_complete, void* callback_context)
 {
 	int result;
 
 	if (tls_io == NULL)
 	{
-		/* Codes_SRS_TLSIO_30_050: [ If the tlsio_handle parameter is NULL, tlsio_openssl_compact_close shall log an error and return FAILURE. ]*/
+		/* Codes_SRS_TLSIO_30_050: [ If the tlsio_handle parameter is NULL, tlsio_openssl_close_async shall log an error and return FAILURE. ]*/
 		LogError("NULL tlsio");
 		result = __FAILURE__;
 	}
@@ -421,7 +416,7 @@ static int tlsio_openssl_close(CONCRETE_IO_HANDLE tls_io, ON_IO_CLOSE_COMPLETE o
 	{
 		if (on_io_close_complete == NULL)
 		{
-			/* Codes_SRS_TLSIO_30_055: [ If the on_io_close_complete parameter is NULL, tlsio_openssl_compact_close shall log an error and return FAILURE. ]*/
+			/* Codes_SRS_TLSIO_30_055: [ If the on_io_close_complete parameter is NULL, tlsio_openssl_close_async shall log an error and return FAILURE. ]*/
 			LogError("NULL on_io_close_complete");
 			result = __FAILURE__;
 		}
@@ -432,7 +427,7 @@ static int tlsio_openssl_close(CONCRETE_IO_HANDLE tls_io, ON_IO_CLOSE_COMPLETE o
 			if (tls_io_instance->tlsio_state != TLSIO_STATE_OPEN &&
 				tls_io_instance->tlsio_state != TLSIO_STATE_ERROR)
 			{
-				/* Codes_SRS_TLSIO_30_053: [ If the adapter is in any state other than TLSIO_STATE_EXT_OPEN or TLSIO_STATE_EXT_ERROR  tlsio_close  shall log an error and return FAILURE. ]*/
+				/* Codes_SRS_TLSIO_30_053: [ If the adapter is in any state other than TLSIO_STATE_EXT_OPEN or TLSIO_STATE_EXT_ERROR tlsio_close_async shall log an error and return FAILURE. ]*/
 				LogError("tlsio_openssl_close has been called when in neither TLSIO_STATE_OPEN nor TLSIO_STATE_ERROR.");
 				result = __FAILURE__;
 			}
@@ -442,12 +437,12 @@ static int tlsio_openssl_close(CONCRETE_IO_HANDLE tls_io, ON_IO_CLOSE_COMPLETE o
 				/* Codes_SRS_TLSIO_30_051: [ On success, if the underlying TLS does not support asynchronous closing, then the adapter shall enter TLSIO_STATE_EX_CLOSED immediately after entering TLSIO_STATE_EX_CLOSING. ]*/
 				/* Codes_SRS_TLSIO_30_052: [ On success tlsio_close shall return 0. ]*/
 				internal_close(tls_io_instance);
-				/* Codes_SRS_TLSIO_30_057: [ When the closing process is complete, tlsio_openssl_compact_close shall call on_io_close_complete and pass the callback_context as a parameter. ]*/
 				on_io_close_complete(callback_context);
 				result = 0;
 			}
 		}
 	}
+    /* Codes_SRS_TLSIO_30_054: [ On failure, the adapter shall not call on_io_close_complete. ]*/
 
 	return result;
 }
@@ -542,11 +537,7 @@ static int tlsio_openssl_send_async(CONCRETE_IO_HANDLE tls_io, const void* buffe
 				}
 			}
 		}
-		if (result != 0)
-		{
-			/* Codes_SRS_TLSIO_30_066: [ On failure, a non-NULL on_send_complete shall be called with callback_context and IO_SEND_ERROR. ]*/
-			on_send_complete(callback_context, IO_SEND_ERROR);
-		}
+        /* Codes_SRS_TLSIO_30_066: [ On failure, on_send_complete shall not be called. ]*/
 	}
 	return result;
 }
@@ -922,7 +913,7 @@ static const IO_INTERFACE_DESCRIPTION tlsio_openssl_interface_description =
 	tlsio_openssl_create,
 	tlsio_openssl_destroy,
 	tlsio_openssl_open_async,
-	tlsio_openssl_close,
+	tlsio_openssl_close_async,
 	tlsio_openssl_send_async,
 	tlsio_openssl_dowork,
 	tlsio_openssl_setoption
