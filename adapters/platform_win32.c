@@ -13,6 +13,11 @@
 #if USE_CYCLONESSL
 #include "azure_c_shared_utility/tlsio_cyclonessl.h"
 #endif
+
+#if USE_WOLFSSL
+#include "azure_c_shared_utility/tlsio_wolfssl.h"
+#endif
+
 #include "azure_c_shared_utility/tlsio_schannel.h"
 
 int platform_init(void)
@@ -42,6 +47,8 @@ const IO_INTERFACE_DESCRIPTION* platform_get_default_tlsio(void)
 	return tlsio_openssl_get_interface_description();
 #elif USE_CYCLONESSL
 	return tlsio_cyclonessl_get_interface_description();
+#elif USE_WOLFSSL    
+	return tlsio_wolfssl_get_interface_description();
 #else
 #ifndef WINCE
     return tlsio_schannel_get_interface_description();
