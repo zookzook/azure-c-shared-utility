@@ -272,7 +272,7 @@ endfunction(pushMBEDRepository)
 
 
 function(compileMBEDProject)
-    set(mbed_repo_address http://os.mbed.com/users/$ENV{MBED_USER}/code/${mbed_repo_name}/)
+    set(mbed_repo_address http://developer.mbed.org/users/$ENV{MBED_USER}/code/${mbed_repo_name}/)
 
     file(GLOB expanded_compile_mbed_tool ${compile_mbed_tool})
     if (DEFINED mbed_output_bin_path AND NOT ${mbed_output_bin_path} EQUAL "")
