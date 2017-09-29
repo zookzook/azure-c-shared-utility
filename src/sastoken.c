@@ -279,8 +279,8 @@ static STRING_HANDLE construct_sas_token(const char* key, const char* scope, con
                         (STRING_concat_with_STRING(result, urlEncodedSignature) != 0) ||
                         (STRING_concat(result, "&se=") != 0) ||
                         (STRING_concat(result, tokenExpirationTime) != 0) ||
-                        (STRING_concat(result, "&skn=") != 0) ||
-                        (STRING_concat(result, keyname) != 0))
+                        ((keyname != NULL) && (STRING_concat(result, "&skn=") != 0)) ||
+                        ((keyname != NULL) && (STRING_concat(result, keyname) != 0)))
                     {
                         LogError("Unable to build the SAS token.");
                         STRING_delete(result);
@@ -310,8 +310,7 @@ STRING_HANDLE SASToken_Create(STRING_HANDLE key, STRING_HANDLE scope, STRING_HAN
     /*Codes_SRS_SASTOKEN_06_003: [If scope is NULL then SASToken_Create shall return NULL.]*/
     /*Codes_SRS_SASTOKEN_06_007: [If keyName is NULL then SASToken_Create shall return NULL.]*/
     if ((key == NULL) ||
-        (scope == NULL) ||
-        (keyName == NULL))
+        (scope == NULL))
     {
         LogError("Invalid Parameter to SASToken_Create. handle key: %p, handle scope: %p, handle keyName: %p", key, scope, keyName);
         result = NULL;
@@ -334,8 +333,7 @@ STRING_HANDLE SASToken_CreateString(const char* key, const char* scope, const ch
     /*Codes_SRS_SASTOKEN_06_003: [If scope is NULL then SASToken_Create shall return NULL.]*/
     /*Codes_SRS_SASTOKEN_06_007: [If keyName is NULL then SASToken_Create shall return NULL.]*/
     if ((key == NULL) ||
-        (scope == NULL) ||
-        (keyName == NULL))
+        (scope == NULL))
     {
         LogError("Invalid Parameter to SASToken_Create. handle key: %p, handle scope: %p, handle keyName: %p", key, scope, keyName);
         result = NULL;
