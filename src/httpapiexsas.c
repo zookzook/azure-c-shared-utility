@@ -47,7 +47,7 @@ HTTPAPIEX_SAS_HANDLE HTTPAPIEX_SAS_Create(STRING_HANDLE key, STRING_HANDLE uriRe
             state->keyName = NULL;
             if (((state->key = STRING_clone(key)) == NULL) ||
                 ((state->uriResource = STRING_clone(uriResource)) == NULL) ||
-                ((state->keyName != NULL) && ((state->keyName = STRING_clone(keyName)) == NULL)))
+                ((keyName != NULL) && ((state->keyName = STRING_clone(keyName)) == NULL)))
             {
                 /*Codes_SRS_HTTPAPIEXSAS_06_004: [If there are any other errors in the instantiation of this handle then HTTPAPIEX_SAS_Create shall return NULL.]*/
                 LogError("Unable to clone the arguments.");
