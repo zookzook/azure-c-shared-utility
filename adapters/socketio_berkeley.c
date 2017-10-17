@@ -6,6 +6,10 @@
 #define SOCKETIO_BERKELEY_UNDEF_BSD_SOURCE
 #endif
 
+#ifdef OWASYS
+#include <linux/if.h>
+#endif
+
 #define _DEFAULT_SOURCE
 #include <net/if.h>
 #undef _DEFAULT_SOURCE
